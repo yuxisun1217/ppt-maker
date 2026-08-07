@@ -232,13 +232,12 @@ def extract_speaker(file_path: str, api_key: str) -> Speaker:
 
         prompt = (
             '请从以下文本中识别演讲者的信息，返回JSON格式：\n'
-            '{"name": "姓名", "title": "职称", "institution": "所属医院", '
+            '{"name": "姓名", "institution": "所属医院", '
             '"bio": "履历列表"}\n'
             '\n'
             f'提示：文件名为「{stem}」，该演讲者的姓名很可能是「{name_from_file}」。\n'
             '如果文本中找不到明确的姓名，请使用提示中的姓名。\n'
             'name字段只返回姓名（2-3个汉字），不要包含职务和头衔。\n'
-            'title字段提取职称，如"教授"、"副教授"、"主任医师"、"副主任医师"等（只保留一个最高职称）。\n'
             'institution字段从文本中提取医院名称，如"重庆大学附属肿瘤医院"（只保留一个最完整的医院名称）。\n'
             'bio字段返回JSON字符串数组，每项为一行履历。\n'
             '数组内容按语义分类整理：\n'
@@ -274,7 +273,7 @@ def extract_speaker(file_path: str, api_key: str) -> Speaker:
             photo_path=photo_path,
             bio=bio,
             institution=data.get('institution', ''),
-            title=data.get('title', ''),
+            title='教授',
         )
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)

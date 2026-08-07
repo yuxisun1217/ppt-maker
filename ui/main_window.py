@@ -15,7 +15,7 @@ class MainWindow:
         self.speaker_files = []   # list of file paths
 
         self.root = tk.Tk()
-        self.root.title(f'会议串场PPT生成器 - 用户: {user["username"]}')
+        self.root.title('会议串场PPT生成器')
         self.root.geometry('950x720')
         self.root.minsize(800, 600)
         self.root.configure(bg='#E3F2FD')
@@ -226,6 +226,22 @@ class MainWindow:
 
     # ---- Build everything ----
     def _build(self):
+        # Header bar (fixed at top)
+        header = tk.Frame(self.root, bg='#1976D2', height=38)
+        header.pack(fill='x', side='top')
+        header.pack_propagate(False)
+        tk.Label(header, text=f'会议串场PPT生成器', font=('Microsoft YaHei', 11, 'bold'),
+                 bg='#1976D2', fg='white').pack(side='left', padx=(16, 0))
+        self._header_user_label = tk.Label(
+            header, text=f'用户: {self.user["username"]}',
+            bg='#1976D2', fg='#BBDEFB', font=('Microsoft YaHei', 9))
+        self._header_user_label.pack(side='left', padx=(6, 0))
+        tk.Button(header, text='账户设置', font=('Microsoft YaHei', 9),
+                  bg='#1565C0', fg='white', relief='flat', padx=10,
+                  activebackground='#0D47A1', activeforeground='white',
+                  cursor='hand2', command=self._open_settings).pack(
+                  side='right', padx=(0, 12), pady=4)
+
         # Floating progress bar (hidden by default)
         self.progress_frame = tk.Frame(self.root, bg='#1976D2', height=36)
         self.progress_var = tk.StringVar(value='')
@@ -281,6 +297,16 @@ class MainWindow:
             build_fn(card)
 
     # ---- Callbacks ----
+    def _open_settings(self):
+        from ui.user_settings_window import UserSettingsWindow
+
+        def on_saved(updated_user):
+            self.user.update(updated_user)
+            self._header_user_label.config(
+                text=f'用户: {self.user["username"]}')
+
+        UserSettingsWindow(self.root, self.user, on_saved)
+
     def _select_speaker_files(self):
         paths = filedialog.askopenfilenames(
             title='选择演讲者资料',
@@ -383,8 +409,10 @@ class MainWindow:
         def _run():
             from extractors.agenda_extractor import extract_agenda
             try:
-                self.agenda_items = extract_agenda(self.agenda_image_path,
-                                                   self.user['api_key'])
+                self.agenda_items = extract_agenda(
+                    self.agenda_image_path,
+                    self.user['api_key'],
+                    self.user.get('ocr_api_key', ''))
             except Exception as e:
                 self.root.after(0, lambda err=e: messagebox.showerror(
                     '识别失败', str(err)))

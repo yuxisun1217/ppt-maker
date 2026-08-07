@@ -93,7 +93,7 @@ class RegisterWindow:
 
         self.win = tk.Toplevel(parent)
         self.win.title('注册新账号')
-        self.win.geometry('380x420')
+        self.win.geometry('380x470')
         self.win.resizable(False, False)
         self.win.configure(bg='#E3F2FD')
 
@@ -118,6 +118,7 @@ class RegisterWindow:
             ('密码 *', 'pwd', '*'),
             ('确认密码 *', 'pwd2', '*'),
             ('DeepSeek API Key', 'apikey', None),
+            ('OCR.space API Key', 'ocr_apikey', None),
         ]
         self.entries = {}
         for label, key, show in fields:
@@ -147,6 +148,7 @@ class RegisterWindow:
         pwd = self.entries['pwd'].get().strip()
         pwd2 = self.entries['pwd2'].get().strip()
         apikey = self.entries['apikey'].get().strip()
+        ocr_apikey = self.entries['ocr_apikey'].get().strip()
 
         if not username or not pwd:
             self.status_var.set('用户名和密码为必填项')
@@ -155,7 +157,7 @@ class RegisterWindow:
             self.status_var.set('两次输入的密码不一致')
             return
 
-        uid = create_user(username, pwd, apikey)
+        uid = create_user(username, pwd, apikey, ocr_apikey)
         if uid:
             messagebox.showinfo('成功', f'账号 "{username}" 注册成功，请登录。')
             self._close()

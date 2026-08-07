@@ -1,6 +1,13 @@
 import json
+import base64
+import urllib.request
+import urllib.error
+import urllib.parse
 from typing import List
 from dataclasses import dataclass
+
+
+OCR_SPACE_URL = 'https://api.ocr.space/parse/image'
 
 
 @dataclass
@@ -39,30 +46,50 @@ OCR_PROMPT = (
 )
 
 
-def _ocr_image(image_path: str) -> str:
-    """Extract text from image using Tesseract OCR with preprocessing."""
-    import pytesseract
-    from PIL import Image, ImageEnhance
+def _ocr_image(image_path: str, ocr_api_key: str) -> str:
+    """Extract text from image using OCR.space API."""
+    with open(image_path, 'rb') as f:
+        img_b64 = base64.b64encode(f.read()).decode('utf-8')
 
-    pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
-    img = Image.open(image_path)
+    payload = urllib.parse.urlencode({
+        'base64Image': f'data:image/png;base64,{img_b64}',
+        'language': 'chs',
+        'isTable': 'true',
+        'OCREngine': '3',
+    }).encode('utf-8')
 
-    img = img.convert('L')
-    enhancer = ImageEnhance.Contrast(img)
-    img = enhancer.enhance(2.0)
-    enhancer = ImageEnhance.Sharpness(img)
-    img = enhancer.enhance(2.0)
+    req = urllib.request.Request(OCR_SPACE_URL, data=payload, method='POST')
+    req.add_header('apikey', ocr_api_key)
+    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
 
-    text = pytesseract.image_to_string(img, lang='chi_sim+eng')
-    if not text.strip() or len(text.strip()) < 20:
-        text = pytesseract.image_to_string(img, lang='eng')
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode('utf-8', errors='ignore')
+        raise RuntimeError(f'OCR.space API 错误 ({e.code}): {body}') from e
+
+    if data.get('IsErroredOnProcessing', True):
+        err_msg = data.get('ErrorMessage', ['Unknown error'])
+        raise RuntimeError(f'OCR.space 处理失败: {err_msg}')
+
+    results = data.get('ParsedResults', [])
+    if not results:
+        raise RuntimeError('OCR.space 未返回识别结果')
+
+    text = results[0].get('ParsedText', '')
+    if not text.strip():
+        raise RuntimeError('OCR.space 返回空文本')
     return text
 
 
-def extract_agenda(image_path: str, api_key: str) -> List[AgendaItem]:
+def extract_agenda(image_path: str, api_key: str, ocr_api_key: str = '') -> List[AgendaItem]:
     from utils.deepseek_client import structure_text
 
-    ocr_text = _ocr_image(image_path)
+    if not ocr_api_key:
+        raise RuntimeError('未配置 OCR.space API Key，请先在注册时填写或在账户设置中更新')
+
+    ocr_text = _ocr_image(image_path, ocr_api_key)
     result = structure_text(ocr_text, OCR_PROMPT, api_key)
     data = json.loads(result)
     items = data.get('agenda', [])

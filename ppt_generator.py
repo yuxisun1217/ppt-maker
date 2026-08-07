@@ -375,8 +375,8 @@ def _make_bio(prs, content_bg, cfg, speaker, role_label=''):
         if speaker.institution:
             info_lines.append(speaker.institution)
         if info_lines:
-            _add_multiline_textbox(slide, bp['photo_left'], bp['name_top'],
-                                   Cm(6.5), Inches(0.7),
+            _add_multiline_textbox(slide, bp['photo_left'] - Cm(1.2), bp['name_top'],
+                                   Cm(8.9), Inches(0.7),
                                    info_lines, Pt(18),
                                    align=PP_ALIGN.CENTER, bold=True)
 

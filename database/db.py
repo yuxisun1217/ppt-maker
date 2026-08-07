@@ -39,6 +39,10 @@ def init_db():
         conn.execute('ALTER TABLE speakers ADD COLUMN institution TEXT DEFAULT \'\'')
     except sqlite3.OperationalError:
         pass
+    try:
+        conn.execute('ALTER TABLE users ADD COLUMN ocr_api_key TEXT DEFAULT \'\'')
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
 
@@ -50,13 +54,15 @@ def _hash_password(password: str, salt: Optional[str] = None) -> tuple:
     return h, salt
 
 
-def create_user(username: str, password: str, api_key: str = '') -> Optional[int]:
+def create_user(username: str, password: str, api_key: str = '',
+                ocr_api_key: str = '') -> Optional[int]:
     conn = _connect()
     try:
         pwd_hash, salt = _hash_password(password)
         cur = conn.execute(
-            'INSERT INTO users (username, password_hash, salt, api_key) VALUES (?, ?, ?, ?)',
-            (username.strip(), pwd_hash, salt, api_key.strip())
+            'INSERT INTO users (username, password_hash, salt, api_key, ocr_api_key) '
+            'VALUES (?, ?, ?, ?, ?)',
+            (username.strip(), pwd_hash, salt, api_key.strip(), ocr_api_key.strip())
         )
         conn.commit()
         return cur.lastrowid
@@ -69,7 +75,8 @@ def create_user(username: str, password: str, api_key: str = '') -> Optional[int
 def authenticate(username: str, password: str) -> Optional[dict]:
     conn = _connect()
     row = conn.execute(
-        'SELECT id, username, password_hash, salt, api_key FROM users WHERE username = ?',
+        'SELECT id, username, password_hash, salt, api_key, ocr_api_key '
+        'FROM users WHERE username = ?',
         (username.strip(),)
     ).fetchone()
     conn.close()
@@ -78,23 +85,61 @@ def authenticate(username: str, password: str) -> Optional[dict]:
     pwd_hash, _ = _hash_password(password, row['salt'])
     if pwd_hash != row['password_hash']:
         return None
-    return {'id': row['id'], 'username': row['username'], 'api_key': row['api_key']}
+    return {'id': row['id'], 'username': row['username'],
+            'api_key': row['api_key'], 'ocr_api_key': row['ocr_api_key']}
 
 
 def get_user(user_id: int) -> Optional[dict]:
     conn = _connect()
     row = conn.execute(
-        'SELECT id, username, api_key FROM users WHERE id = ?', (user_id,)
+        'SELECT id, username, api_key, ocr_api_key FROM users WHERE id = ?', (user_id,)
     ).fetchone()
     conn.close()
     if row is None:
         return None
-    return {'id': row['id'], 'username': row['username'], 'api_key': row['api_key']}
+    return {'id': row['id'], 'username': row['username'],
+            'api_key': row['api_key'], 'ocr_api_key': row['ocr_api_key']}
 
 
 def update_api_key(user_id: int, api_key: str):
     conn = _connect()
     conn.execute('UPDATE users SET api_key = ? WHERE id = ?', (api_key.strip(), user_id))
+    conn.commit()
+    conn.close()
+
+
+def update_ocr_api_key(user_id: int, ocr_api_key: str):
+    conn = _connect()
+    conn.execute('UPDATE users SET ocr_api_key = ? WHERE id = ?',
+                 (ocr_api_key.strip(), user_id))
+    conn.commit()
+    conn.close()
+
+
+def update_user(user_id: int, username: str, api_key: str, ocr_api_key: str) -> bool:
+    """Update user profile fields. Returns False if username is taken by another user."""
+    conn = _connect()
+    try:
+        conn.execute(
+            'UPDATE users SET username = ?, api_key = ?, ocr_api_key = ? WHERE id = ?',
+            (username.strip(), api_key.strip(), ocr_api_key.strip(), user_id)
+        )
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+
+def update_password(user_id: int, new_password: str):
+    """Update password with new salt + hash."""
+    pwd_hash, salt = _hash_password(new_password)
+    conn = _connect()
+    conn.execute(
+        'UPDATE users SET password_hash = ?, salt = ? WHERE id = ?',
+        (pwd_hash, salt, user_id)
+    )
     conn.commit()
     conn.close()
 
