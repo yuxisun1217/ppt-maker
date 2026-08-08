@@ -29,12 +29,12 @@ CFG_16_9 = {
         'name_top': Inches(5.0), 'name_sz': Pt(18),
         'inst_top': Inches(5.4), 'inst_sz': Pt(14),
         'bio_left': Inches(4.0), 'bio_top': Inches(1.5),
-        'bio_w': Inches(8.5), 'bio_h': Inches(5.2), 'bio_sz': Pt(16),
+        'bio_w': Inches(8.5), 'bio_h': Inches(4.85), 'bio_sz': Pt(17),
     },
     'bio_nophoto': {
         'role_top': Inches(0.8), 'role_h': Inches(0.7), 'role_sz': Pt(36),
         'bio_left': Inches(1.5), 'bio_top': Inches(1.8),
-        'bio_w': Inches(10.3), 'bio_h': Inches(5.0), 'bio_sz': Pt(17),
+        'bio_w': Inches(10.3), 'bio_h': Inches(4.65), 'bio_sz': Pt(17),
     },
     'topic': {
         'title_top': Inches(3.0), 'title_h': Inches(0.8),
@@ -64,12 +64,12 @@ CFG_ULTRAWIDE = {
         'name_top': Inches(0.55), 'name_sz': Pt(10),
         'inst_top': Inches(0.85), 'inst_sz': Pt(8),
         'bio_left': Inches(1.8), 'bio_top': Inches(0.35),
-        'bio_w': Inches(5.8), 'bio_h': Inches(1.15), 'bio_sz': Pt(9),
+        'bio_w': Inches(5.8), 'bio_h': Inches(0.96), 'bio_sz': Pt(9),
     },
     'bio_nophoto': {
         'role_top': Inches(0.05), 'role_h': Inches(0.3), 'role_sz': Pt(18),
         'bio_left': Inches(0.3), 'bio_top': Inches(0.4),
-        'bio_w': Inches(7.2), 'bio_h': Inches(1.1), 'bio_sz': Pt(10),
+        'bio_w': Inches(7.2), 'bio_h': Inches(0.89), 'bio_sz': Pt(10),
     },
     'topic': {
         'title_top': Inches(0.3), 'title_h': Inches(0.55),
@@ -268,7 +268,7 @@ def _make_divider(prs, home_bg, cfg, title_cn, title_en, bilingual, speaker_name
 
     if speaker_name:
         _add_textbox(slide, Inches(0.5), d['speaker_top'], w - Inches(1), d['speaker_h'],
-                     speaker_name, d['speaker_sz'], color=d['speaker_color'])
+                     speaker_name, d['speaker_sz'], color=d['speaker_color'], bold=True)
     return slide
 
 
@@ -381,10 +381,66 @@ def _make_bio(prs, content_bg, cfg, speaker, role_label=''):
                                    align=PP_ALIGN.CENTER, bold=True)
 
     # Bio text (split into lines)
-    bio_lines = [l.strip() for l in speaker.bio.replace('\r', '').split('\n') if l.strip()]
+    raw_lines = [l.strip() for l in speaker.bio.replace('\r', '').split('\n') if l.strip()]
+    if not raw_lines:
+        # Speaker bio is missing — show fallback text
+        fallback = f'{speaker.name}（信息缺失）'
+        _add_textbox(slide, bp['bio_left'], bp['bio_top'],
+                     bp['bio_w'], Inches(1.2),
+                     fallback, Pt(20),
+                     color=TEXT_COLOR, align=PP_ALIGN.CENTER)
+        return slide
+
+    # Split very long lines (>=100 chars) at Chinese delimiters 、or ，
+    bio_lines = []
+    for line in raw_lines:
+        if len(line) >= 100:
+            # Split at 、and ，, discarding the delimiters
+            parts = []
+            cur = ''
+            for ch in line:
+                if ch in ('、', '，'):
+                    if cur.strip():
+                        parts.append(cur.strip())
+                    cur = ''
+                else:
+                    cur += ch
+            if cur.strip():
+                parts.append(cur.strip())
+            if parts:
+                bio_lines.extend(parts)
+            else:
+                bio_lines.append(line)
+        else:
+            bio_lines.append(line)
+
+    # Effective visual lines: >=28 chars per line wraps to 2
+    N_visual = sum(2 if len(line) >= 28 else 1 for line in bio_lines)
+
+    # Font size: shrink for very long bios
+    if N_visual >= 20:
+        bio_sz = Pt(14)
+        FS_pt = 14
+    elif N_visual >= 15:
+        bio_sz = Pt(16)
+        FS_pt = 16
+    else:
+        bio_sz = bp['bio_sz']
+        FS_pt = bio_sz / 12700
+
+    # Fixed line spacing rules based on effective line count
+    # (multiplier × default line height ≈ 1.2×FS; extra = (multiplier−1) × 1.2×FS)
+    if N_visual < 8:
+        bio_spacing = FS_pt * 1.2     # 2× spacing
+    elif N_visual < 10:
+        bio_spacing = FS_pt * 0.6     # 1.5× spacing
+    else:
+        bio_spacing = 0               # 1× spacing (single)
+
     _add_multiline_textbox(slide, bp['bio_left'], bp['bio_top'],
                            bp['bio_w'], bp['bio_h'],
-                           bio_lines, bp['bio_sz'], bullet=True)
+                           bio_lines, bio_sz, bullet=True,
+                           line_spacing=bio_spacing)
     return slide
 
 
@@ -402,11 +458,15 @@ def _make_topic(prs, content_bg, cfg, title_cn, title_en, bilingual,
     _add_textbox(slide, Inches(0.3), t['title_top'], w - Inches(0.6), t['title_h'],
                  title_line, t['title_sz'], color=t['title_color'], bold=True)
 
-    speaker_line = speaker_name
+    # Insert space in 2-char Chinese names for visual balance
+    def _pad_name(n):
+        return f'{n[0]}  {n[1]}' if len(n) == 2 and '一' <= n[0] <= '鿿' else n
+
+    speaker_line = _pad_name(speaker_name)
     if institution:
-        speaker_line = f'{speaker_name}  |  {institution}'
+        speaker_line = f'{speaker_line}  |  {institution}'
     _add_textbox(slide, Inches(0.3), t['speaker_top'], w - Inches(0.6), t['speaker_h'],
-                 speaker_line, t['speaker_sz'], color=t['speaker_color'])
+                 speaker_line, t['speaker_sz'], color=t['speaker_color'], bold=True)
     return slide
 
 
@@ -464,7 +524,7 @@ def generate_ppt(agenda_items, speakers, home_bg, content_bg,
 
     # 3. Per-agenda-item slide groups
     for item in agenda_items:
-        # Divider: format speaker line "嘉宾：姓名 职称" (only for matched speakers)
+        # Divider: format speaker line "姓名 职称" (only for matched speakers)
         speaker_line = ''
         if item.speaker_name:
             parts = []
@@ -473,7 +533,7 @@ def generate_ppt(agenda_items, speakers, home_bg, content_bg,
                 if sp:
                     title_part = f' {sp.title}' if sp.title else ''
                     parts.append(f'{sp.name}{title_part}')
-            speaker_line = '嘉宾：' + '、'.join(parts) if parts else ''
+            speaker_line = '、'.join(parts) if parts else ''
         _make_divider(prs, content_bg, cfg,
                       item.session_title_cn, item.session_title_en,
                       bilingual, speaker_line)
@@ -515,3 +575,56 @@ def generate_ppt(agenda_items, speakers, home_bg, content_bg,
 
     prs.save(output_path)
     return output_path
+
+
+# ---------------------------------------------------------------------------
+# CLI entry — called via subprocess from main_window.py
+# ---------------------------------------------------------------------------
+
+if __name__ == '__main__':
+    import sys
+    import json as _json
+
+    if len(sys.argv) < 2:
+        print('Usage: python ppt_generator.py <params_json_path>', file=sys.stderr)
+        sys.exit(1)
+
+    params_path = sys.argv[1]
+    with open(params_path, 'r', encoding='utf-8') as f:
+        params = _json.load(f)
+
+    # Reconstruct AgendaItem objects
+    agenda_items = []
+    for d in params['agenda_items']:
+        agenda_items.append(__import__('extractors.agenda_extractor',
+                                       fromlist=['AgendaItem']).AgendaItem(
+            order=d['order'],
+            time_slot=d['time_slot'],
+            session_title_cn=d['session_title_cn'],
+            session_title_en=d['session_title_en'],
+            speaker_name=d['speaker_name'],
+            host=d['host'],
+            institution=d['institution'],
+            item_type=d['item_type'],
+        ))
+
+    # Reconstruct Speaker objects
+    speakers = {}
+    for name, d in params['speakers'].items():
+        speakers[name] = Speaker(
+            name=d['name'],
+            photo_path=d['photo_path'],
+            bio=d['bio'],
+            institution=d['institution'],
+            title=d['title'],
+        )
+
+    generate_ppt(
+        agenda_items=agenda_items,
+        speakers=speakers,
+        home_bg=params['home_bg'],
+        content_bg=params['content_bg'],
+        slide_size=params['slide_size'],
+        lang=params['lang'],
+        output_path=params['output_path'],
+    )

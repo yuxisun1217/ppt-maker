@@ -57,6 +57,36 @@ class Speaker:
     title: str = ''
 
 
+def _read_zip_entry_raw(zf, name):
+    """Read a ZIP entry even if its CRC is corrupted.
+
+    Returns the uncompressed data, or ``None`` if unrecoverable.
+    """
+    import struct
+    import zlib
+
+    info = zf.getinfo(name)
+    fp = zf.fp
+    fp.seek(info.header_offset)
+    local_header = fp.read(30)
+    if len(local_header) < 30 or local_header[:4] != b'PK\x03\x04':
+        return None
+    filename_len = struct.unpack('<H', local_header[26:28])[0]
+    extra_len = struct.unpack('<H', local_header[28:30])[0]
+    data_offset = info.header_offset + 30 + filename_len + extra_len
+    fp.seek(data_offset)
+    compressed = fp.read(info.compress_size)
+
+    if info.compress_type == 0:   # stored (no compression)
+        return compressed
+    if info.compress_type == 8:   # deflated
+        try:
+            return zlib.decompress(compressed, -15)
+        except Exception:
+            return None
+    return None
+
+
 def _extract_images_from_docx(file_path: str, output_dir: str) -> List[str]:
     """Extract embedded images from a DOCX file. Returns list of image paths."""
     from docx import Document
@@ -83,8 +113,11 @@ def _extract_images_from_docx(file_path: str, output_dir: str) -> List[str]:
 
 
 def _extract_images_from_docx_zip_fallback(file_path: str, output_dir: str) -> List[str]:
-    """Fallback: extract images from DOCX ZIP directly, skipping corrupt entries."""
+    """Fallback: extract images from DOCX ZIP directly, including entries
+    with corrupted CRC (raw byte extraction)."""
     import zipfile
+    import struct
+    import zlib
 
     paths = []
     try:
@@ -95,7 +128,11 @@ def _extract_images_from_docx_zip_fallback(file_path: str, output_dir: str) -> L
                 try:
                     data = zf.read(name)
                 except Exception:
-                    continue
+                    # CRC error or other read failure —
+                    # try to read the raw bytes bypassing the CRC check
+                    data = _read_zip_entry_raw(zf, name)
+                    if data is None:
+                        continue
                 ext = name.rsplit('.', 1)[-1].lower()
                 if ext not in ('jpeg', 'jpg', 'png', 'gif', 'bmp'):
                     ext = 'png'
@@ -109,30 +146,115 @@ def _extract_images_from_docx_zip_fallback(file_path: str, output_dir: str) -> L
 
 
 def _extract_images_from_pptx(file_path: str, output_dir: str) -> List[str]:
-    """Extract embedded images from a PPTX file. Returns list of image paths."""
+    """Extract embedded images from a PPTX file. Returns list of image paths.
+
+    Covers both direct PICTURE shapes and placeholders/autoshapes that
+    contain picture fills (common when a user inserts a photo into a
+    content placeholder).
+    """
     from pptx import Presentation
+    from pptx.oxml.ns import qn
 
     prs = Presentation(file_path)
     paths = []
-    img_idx = 0
+    seen = set()  # deduplicate by rId
+    nsm = {
+        'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+        'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+    }
+
     for slide in prs.slides:
         for shape in slide.shapes:
-            if shape.shape_type == 13:  # PICTURE
-                ext = shape.image.content_type.split('/')[-1]
-                if ext == 'jpeg':
-                    ext = 'jpg'
-                img_path = os.path.join(output_dir, f'pptx_img_{img_idx}.{ext}')
-                with open(img_path, 'wb') as f:
-                    f.write(shape.image.blob)
-                paths.append(img_path)
-                img_idx += 1
+            img_blob = None
+            img_ct = None
+
+            # 1) Direct PICTURE shape
+            if shape.shape_type == 13 and shape.image:
+                img_blob = shape.image.blob
+                img_ct = shape.image.content_type
+
+            # 2) Any shape with a picture fill (blipFill) —
+            #    covers placeholders, autoshapes, etc.
+            if img_blob is None:
+                blips = shape._element.findall('.//a:blip', nsm)
+                for blip in blips:
+                    embed = blip.get(qn('r:embed'))
+                    if not embed or embed in seen:
+                        continue
+                    if embed in slide.part.rels:
+                        rel = slide.part.rels[embed]
+                        img_part = getattr(rel, 'target_part', rel)
+                        blob = getattr(img_part, 'blob', None) or getattr(img_part, '_blob', None)
+                        if blob:
+                            img_blob = blob
+                            img_ct = getattr(img_part, 'content_type', 'image/png')
+                            seen.add(embed)
+                            break
+
+            if img_blob is None:
+                continue
+
+            ext = (img_ct or 'image/png').split('/')[-1]
+            if ext == 'jpeg':
+                ext = 'jpg'
+            if ext not in ('jpg', 'jpeg', 'png', 'gif', 'bmp'):
+                ext = 'png'
+            img_path = os.path.join(output_dir, f'pptx_img_{len(paths)}.{ext}')
+            with open(img_path, 'wb') as f:
+                f.write(img_blob)
+            paths.append(img_path)
     return paths
 
 
 def _extract_images_from_pdf(file_path: str, output_dir: str) -> List[str]:
-    """Try to extract embedded images from a PDF file. Empty if none."""
-    # PyPDF2 can't reliably extract images, return empty
-    return []
+    """Extract embedded images from a PDF file via PyPDF2 page XObjects."""
+    from PyPDF2 import PdfReader
+
+    paths = []
+    try:
+        reader = PdfReader(file_path)
+    except Exception:
+        return paths
+
+    for page_idx, page in enumerate(reader.pages):
+        resources = page.get('/Resources', {})
+        if not resources:
+            continue
+        xobjects = resources.get('/XObject', {})
+        if not xobjects:
+            continue
+        for img_idx, (name, obj) in enumerate(xobjects.items()):
+            try:
+                xobj = obj.get_object()
+            except Exception:
+                continue
+            if xobj.get('/Subtype', '') != '/Image':
+                continue
+            try:
+                data = xobj.get_data()
+            except Exception:
+                continue
+            if not data:
+                continue
+            # Determine extension from the image filter
+            f = xobj.get('/Filter', '')
+            if isinstance(f, list):
+                f = f[0] if f else ''
+            f_name = f.get('/Name', '') if hasattr(f, 'get') else str(f)
+            if 'DCTDecode' in f_name or 'DCT' in f_name:
+                ext = 'jpg'
+            elif 'JPXDecode' in f_name:
+                ext = 'jp2'
+            else:
+                ext = 'png'
+            if ext not in ('jpg', 'jpeg', 'png', 'gif', 'bmp'):
+                ext = 'png'
+            img_path = os.path.join(
+                output_dir, f'pdf_p{page_idx}_i{img_idx}.{ext}')
+            with open(img_path, 'wb') as fh:
+                fh.write(data)
+            paths.append(img_path)
+    return paths
 
 
 def _extract_text_from_docx(file_path: str) -> str:
@@ -195,10 +317,261 @@ def _extract_text_from_pdf(file_path: str) -> str:
     return '\n'.join(texts)
 
 
+def _extract_text_from_doc_ole(file_path: str) -> str:
+    """Extract text from binary .doc (OLE compound) file."""
+    import olefile
+    import re
+
+    try:
+        ole = olefile.OleFileIO(file_path)
+    except Exception:
+        return ''
+
+    parts = []
+    try:
+        if ole.exists('WordDocument'):
+            data = ole.openstream('WordDocument').read()
+            # Decode as UTF-16LE (most .doc files use Unicode storage)
+            decoded = data.decode('utf-16-le', errors='ignore')
+            # Remove non-text characters; keep only Chinese, ASCII, punctuation
+            cleaned = re.sub(
+                r'[^一-鿿　-〿＀-￯'
+                r'a-zA-Z0-9\s\.\,\;\:\!\?\(\)\[\]\{\}\-\+\/\@'
+                r'\#\$\%\&\*\"\'\<\>\=\~\`\_\|\n\r'
+                r'‐-⁯℀-⅏]+',
+                '\n', decoded)
+            # Collapse multiple newlines
+            cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+            # Only keep lines that contain at least 2 consecutive CJK chars
+            # (filters out binary noise that decoded to random symbols)
+            filtered = []
+            for line in cleaned.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                # Keep lines with at least 2 consecutive Chinese chars
+                # or meaningful ASCII text (3+ words)
+                if re.search(r'[一-鿿]{2,}', line) or len(line.split()) >= 3:
+                    filtered.append(line)
+            parts.append('\n'.join(filtered))
+    finally:
+        ole.close()
+
+    return '\n'.join(p.strip() for p in '\n'.join(parts).split('\n') if p.strip())
+
+
+def _extract_images_from_doc_ole(file_path: str, output_dir: str) -> List[str]:
+    """Extract images from binary .doc (OLE compound) file by scanning
+    all streams for JPEG/PNG signatures."""
+    import olefile
+
+    paths = []
+    # Image signatures
+    sigs = {
+        b'\xff\xd8\xff': 'jpg',    # JPEG
+        b'\x89PNG\r\n\x1a\n': 'png',  # PNG
+        b'GIF8': 'gif',           # GIF
+        b'BM': 'bmp',             # BMP
+    }
+
+    try:
+        ole = olefile.OleFileIO(file_path)
+    except Exception:
+        return paths
+
+    try:
+        for stream_name in ole.listdir():
+            sname = '/'.join(stream_name)
+            try:
+                data = ole.openstream(sname).read()
+            except Exception:
+                continue
+            # Search for image signatures in stream data
+            for sig_bytes, ext in sigs.items():
+                start = 0
+                while True:
+                    idx = data.find(sig_bytes, start)
+                    if idx == -1:
+                        break
+                    # Try to read the image
+                    if ext == 'jpg':
+                        # JPEG: find end marker FF D9
+                        end = data.find(b'\xff\xd9', idx + 2)
+                        if end == -1:
+                            end = len(data)
+                        else:
+                            end += 2
+                    elif ext == 'png':
+                        # PNG: find IEND marker
+                        end = data.find(b'IEND\xae\x42\x60\x82', idx)
+                        if end == -1:
+                            end = len(data)
+                        else:
+                            end += 8
+                    elif ext == 'gif':
+                        end = data.find(b'\x00\x3b', idx)  # GIF terminator
+                        if end == -1:
+                            end = len(data)
+                        else:
+                            end += 2
+                    else:
+                        end = min(idx + 10 * 1024 * 1024, len(data))  # cap at 10MB
+
+                    img_data = data[idx:end]
+                    if len(img_data) > 256:  # skip tiny fragments
+                        img_path = os.path.join(
+                            output_dir, f'doc_img_{len(paths)}.{ext}')
+                        with open(img_path, 'wb') as f:
+                            f.write(img_data)
+                        paths.append(img_path)
+                    start = idx + 1
+    finally:
+        ole.close()
+
+    return paths
+
+
+def _extract_text_from_ppt_ole(file_path: str) -> str:
+    """Extract text from binary .ppt (OLE compound) file.
+
+    Searches for TextCharsAtom (0x0FA0) and TextBytesAtom (0x0FA8)
+    records within the PowerPoint Document stream and extracts their
+    text content.
+    """
+    import olefile
+    import struct
+    import re
+
+    try:
+        ole = olefile.OleFileIO(file_path)
+    except Exception:
+        return ''
+
+    texts = []
+    try:
+        if not ole.exists('PowerPoint Document'):
+            return ''
+        data = ole.openstream('PowerPoint Document').read()
+
+        # Search for TextCharsAtom (recType=0x0FA0) and
+        # TextBytesAtom (recType=0x0FA8) record headers.
+        pos = 0
+        while pos < len(data) - 8:
+            rec_type = struct.unpack_from('<H', data, pos + 2)[0]
+
+            if rec_type in (0x0FA0, 0x0FA8):
+                rec_len = struct.unpack_from('<I', data, pos + 4)[0]
+                text_start = pos + 8
+                if (text_start + rec_len <= len(data)
+                        and 0 < rec_len < 50000):
+                    if rec_type == 0x0FA0:  # TextCharsAtom — UTF-16LE
+                        try:
+                            t = data[text_start:text_start + rec_len].decode('utf-16-le', errors='ignore')
+                            t = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', t)
+                            if t.strip():
+                                texts.append(t.strip())
+                        except Exception:
+                            pass
+                    else:  # TextBytesAtom — single-byte encoded
+                        try:
+                            t = data[text_start:text_start + rec_len].decode('cp1252', errors='ignore')
+                            if t.strip():
+                                texts.append(t.strip())
+                        except Exception:
+                            pass
+                    pos = text_start + rec_len
+                else:
+                    pos += 1
+            else:
+                pos += 1
+    finally:
+        ole.close()
+
+    # Deduplicate and join
+    seen = set()
+    result = []
+    for t in texts:
+        if t not in seen:
+            seen.add(t)
+            result.append(t)
+    return '\n'.join(result)
+
+
+def _extract_images_from_ppt_ole(file_path: str, output_dir: str) -> List[str]:
+    """Extract images from binary .ppt (OLE compound) file.
+    PPT stores images in the \"Pictures\" stream."""
+    import olefile
+    import struct
+
+    paths = []
+    try:
+        ole = olefile.OleFileIO(file_path)
+    except Exception:
+        return paths
+
+    try:
+        if ole.exists('Pictures'):
+            data = ole.openstream('Pictures').read()
+            # .ppt Pictures stream contains embedded images with headers
+            # Scan for JPEG/PNG signatures
+            sigs = {
+                b'\xff\xd8\xff': ('jpg', b'\xff\xd9'),
+                b'\x89PNG\r\n\x1a\n': ('png', b'IEND\xae\x42\x60\x82'),
+            }
+            for sig_bytes, (ext, end_marker) in sigs.items():
+                start = 0
+                while True:
+                    idx = data.find(sig_bytes, start)
+                    if idx == -1:
+                        break
+                    end = data.find(end_marker, idx + 2)
+                    if end == -1:
+                        end = len(data)
+                    else:
+                        end += len(end_marker)
+                    img_data = data[idx:end]
+                    if len(img_data) > 256:
+                        img_path = os.path.join(
+                            output_dir, f'ppt_img_{len(paths)}.{ext}')
+                        with open(img_path, 'wb') as f:
+                            f.write(img_data)
+                        paths.append(img_path)
+                    start = idx + 1
+    finally:
+        ole.close()
+
+    return paths
+
+
+def _resolve_institution(short_name: str, api_key: str) -> str:
+    """Use DeepSeek to expand a hospital abbreviation to its full name.
+
+    Returns the full name (ending with 医院), or empty string if
+    resolution fails.
+    """
+    from utils.deepseek_client import structure_text
+
+    prompt = (
+        '请将以下医院简称扩展为完整官方全称，必须以"医院"结尾。\n'
+        '如果这是某个知名医院的简称或俗称，请返回其完整名称。\n'
+        '如果无法确定全称，只返回"UNKNOWN"。\n'
+        '只返回全称文字，不要解释、不要加引号。'
+    )
+    try:
+        result = structure_text(short_name, prompt, api_key)
+        result = result.strip().strip('"\'').strip()
+        if result and result != 'UNKNOWN' and result.endswith('医院'):
+            return result
+    except Exception:
+        pass
+    return ''
+
+
 def extract_speaker(file_path: str, api_key: str) -> Speaker:
     """
-    Extract speaker info from a file (docx/pptx/pdf).
+    Extract speaker info from a file (docx/doc/pptx/ppt/pdf).
     Uses python libraries for text/image extraction, then DeepSeek to structure.
+    Binary .doc/.ppt use OLE-based extraction.
     """
     ext = Path(file_path).suffix.lower()
     work_dir = tempfile.mkdtemp(prefix='spk_')
@@ -211,13 +584,43 @@ def extract_speaker(file_path: str, api_key: str) -> Speaker:
         name_from_file = stem
 
     try:
-        # Extract text
+        # Extract text — try XML-based first, fall back to OLE for .doc/.ppt
         if ext == '.docx':
             raw_text = _extract_text_from_docx(file_path)
             img_paths = _extract_images_from_docx(file_path, work_dir)
+        elif ext == '.doc':
+            # Try python-docx first (some .doc files are actually .docx);
+            # binary .doc files will raise an exception, falling back to OLE.
+            try:
+                raw_text = _extract_text_from_docx(file_path)
+            except Exception:
+                raw_text = ''
+            if not raw_text.strip():
+                raw_text = _extract_text_from_doc_ole(file_path)
+            try:
+                img_paths = _extract_images_from_docx(file_path, work_dir)
+            except Exception:
+                img_paths = []
+            if not img_paths:
+                img_paths = _extract_images_from_doc_ole(file_path, work_dir)
         elif ext == '.pptx':
             raw_text = _extract_text_from_pptx(file_path)
             img_paths = _extract_images_from_pptx(file_path, work_dir)
+        elif ext == '.ppt':
+            # Try python-pptx first (some .ppt files are actually .pptx);
+            # binary .ppt files will raise an exception, falling back to OLE.
+            try:
+                raw_text = _extract_text_from_pptx(file_path)
+            except Exception:
+                raw_text = ''
+            if not raw_text.strip():
+                raw_text = _extract_text_from_ppt_ole(file_path)
+            try:
+                img_paths = _extract_images_from_pptx(file_path, work_dir)
+            except Exception:
+                img_paths = []
+            if not img_paths:
+                img_paths = _extract_images_from_ppt_ole(file_path, work_dir)
         elif ext == '.pdf':
             raw_text = _extract_text_from_pdf(file_path)
             img_paths = _extract_images_from_pdf(file_path, work_dir)
@@ -240,12 +643,21 @@ def extract_speaker(file_path: str, api_key: str) -> Speaker:
             'name字段只返回姓名（2-3个汉字），不要包含职务和头衔。\n'
             'institution字段从文本中提取医院名称，如"重庆大学附属肿瘤医院"（只保留一个最完整的医院名称）。\n'
             'bio字段返回JSON字符串数组，每项为一行履历。\n'
-            '数组内容按语义分类整理：\n'
-            '1. 学位、职称、导师资格合并为第一项，如"医学博士、主任医师、硕士生导师"\n'
-            '2. 科室职务必须保留完整医院名称，如"重庆医科大学附属第一医院泌尿外科主任"\n'
-            '3. 以国家（中国/中华/全国/美国/欧洲）、省（省/直辖市）等地区开头的学会任职，每个单独一项\n'
-            '4. 访问学者、获奖等经历类各单独一项\n'
-            '每项不超过30个字，去掉多余的连接词和标点。\n'
+            '\n'
+            '核心原则：尽量保持原文的行结构和自然分段，不要随意按顿号、逗号拆分成多行。\n'
+            '原文中同一行/同一段的内容保持在同一行，如原文将所有学会任职和编委写在一行，\n'
+            '就全部保留在一行（如"担任中国医师协会...会长、北京医学会...委员，UroPrecison主编、\n'
+            'J of Urology编委、《中华医学杂志》副总编"）。\n'
+            '只在原文有明确换行或分段时才可以分成多行。\n'
+            '\n'
+            '数组内容按以下顺序整理（保留全部信息，不省略）：\n'
+            '1. 领导职务——如有多项用顿号连接在一行\n'
+            '2. 学位职称——学位、职称、导师资格合并一行\n'
+            '3. 临床专长——临床和研究方向描述\n'
+            '4. 科研成果——承担课题、发表论文、获奖等，各部分自然分段\n'
+            '5. 荣誉称号——每个单独一行\n'
+            '6. 学会任职及期刊编委——学会任职和期刊编委职务，原文在同一段的保持在一行\n'
+            '删除"共"、"荣获"等多余连接词，保留核心内容。\n'
             '如果文本中包含多个人的信息，只提取主要人物。'
         )
         result = structure_text(raw_text, prompt, api_key)
@@ -264,6 +676,16 @@ def extract_speaker(file_path: str, api_key: str) -> Speaker:
             shutil.copy2(best, dest)
             photo_path = dest
 
+        # Resolve institution full name if it doesn't end with 医院
+        institution = data.get('institution', '')
+        if institution and not institution.endswith('医院'):
+            try:
+                resolved = _resolve_institution(institution, api_key)
+                if resolved:
+                    institution = resolved
+            except Exception:
+                pass  # Keep original if resolution fails
+
         bio = data.get('bio', '')
         if isinstance(bio, list):
             bio = '\n'.join(bio)
@@ -272,7 +694,7 @@ def extract_speaker(file_path: str, api_key: str) -> Speaker:
             name=data.get('name', ''),
             photo_path=photo_path,
             bio=bio,
-            institution=data.get('institution', ''),
+            institution=institution,
             title='教授',
         )
     finally:

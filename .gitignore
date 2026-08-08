@@ -1,5 +1,32 @@
+# data
 data/
-__pycache__/
-*.pyc
 *.jpg
 *.png
+app_data.db
+test_data/
+
+# Python 编译文件
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# 虚拟环境
+venv/
+env/
+.venv/
+
+# 打包和分发文件
+build/
+dist/
+*.egg-info/
+*.egg
+
+# 测试和覆盖率报告
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE 配置
+.vscode/
+.idea/

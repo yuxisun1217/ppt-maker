@@ -12,6 +12,7 @@ class MainWindow:
         self.agenda_items = []    # [AgendaItem]
         self.home_bg_path = ''
         self.content_bg_path = ''
+        self.template_path = ''    # PPT template path (mutually exclusive with manual bg)
         self.speaker_files = []   # list of file paths
 
         self.root = tk.Tk()
@@ -94,9 +95,13 @@ class MainWindow:
                                        bg='#4CAF50', fg='white', relief='flat', padx=12,
                                        command=self._extract_speakers)
         self.extract_btn.pack(side='left', padx=(0, 8))
-        tk.Button(btn_row, text='清空数据', font=('Microsoft YaHei', 10),
+        tk.Button(btn_row, text='新增', font=('Microsoft YaHei', 10),
+                  bg='#1976D2', fg='white', relief='flat', padx=12,
+                  command=self._add_speaker).pack(side='left', padx=(0, 8))
+        tk.Button(btn_row, text='删除', font=('Microsoft YaHei', 10),
                   bg='#E57373', fg='white', relief='flat', padx=12,
-                  command=self._clear_speakers).pack(side='left')
+                  command=self._delete_speaker).pack(side='left')
+        # "清空数据" button hidden; _clear_speakers method retained
         self.speaker_count_var = tk.StringVar(value='')
         tk.Label(btn_row, textvariable=self.speaker_count_var, bg='#E3F2FD',
                  fg='#1976D2', font=('Microsoft YaHei', 10, 'bold')).pack(
@@ -108,10 +113,10 @@ class MainWindow:
 
         row1 = tk.Frame(parent, bg='#E3F2FD')
         row1.pack(fill='x', pady=2)
-        tk.Button(row1, text='选择日程图片', font=('Microsoft YaHei', 10),
+        tk.Button(row1, text='选择日程文件', font=('Microsoft YaHei', 10),
                   bg='#1976D2', fg='white', relief='flat', padx=12,
                   command=self._select_agenda_image).pack(side='left')
-        self.agenda_file_label = tk.Label(row1, text='未选择图片', bg='#E3F2FD', fg='#666',
+        self.agenda_file_label = tk.Label(row1, text='未选择文件', bg='#E3F2FD', fg='#666',
                                           font=('Microsoft YaHei', 9))
         self.agenda_file_label.pack(side='left', padx=10)
 
@@ -166,6 +171,25 @@ class MainWindow:
     def _build_template_section(self, parent):
         self._section_label(parent, '模板图片')
 
+        # --- Row 0: PPT template upload (mutually exclusive with manual selection) ---
+        tpl_row = tk.Frame(parent, bg='#E3F2FD')
+        tpl_row.pack(fill='x', pady=(2, 6))
+        tk.Label(tpl_row, text='PPT模板:', bg='#E3F2FD', fg='#333', width=8, anchor='w',
+                 font=('Microsoft YaHei', 10)).pack(side='left')
+        self.template_label = tk.Label(tpl_row, text='未选择', bg='#E3F2FD', fg='#999',
+                                       font=('Microsoft YaHei', 9), width=28, anchor='w')
+        self.template_label.pack(side='left', padx=6)
+        self.template_btn = tk.Button(tpl_row, text='上传PPT', font=('Microsoft YaHei', 9),
+                                      bg='#1976D2', fg='white', relief='flat', padx=8,
+                                      command=self._select_template)
+        self.template_btn.pack(side='left', padx=(0, 4))
+        self.template_clear_btn = tk.Button(tpl_row, text='清除', font=('Microsoft YaHei', 9),
+                                            bg='#BBDEFB', fg='#1976D2', relief='flat', padx=8,
+                                            command=self._clear_template,
+                                            state='disabled')
+        self.template_clear_btn.pack(side='left')
+
+        # --- Row 1: Home page image (manual) ---
         f = tk.Frame(parent, bg='#E3F2FD')
         f.pack(fill='x', pady=4)
 
@@ -174,10 +198,12 @@ class MainWindow:
         self.home_bg_label = tk.Label(f, text='未选择', bg='#E3F2FD', fg='#999',
                                       font=('Microsoft YaHei', 9), width=30, anchor='w')
         self.home_bg_label.pack(side='left', padx=6)
-        tk.Button(f, text='选择', font=('Microsoft YaHei', 9),
-                  bg='#1976D2', fg='white', relief='flat', padx=8,
-                  command=self._select_home_bg).pack(side='left')
+        self.home_bg_btn = tk.Button(f, text='选择', font=('Microsoft YaHei', 9),
+                                     bg='#1976D2', fg='white', relief='flat', padx=8,
+                                     command=self._select_home_bg)
+        self.home_bg_btn.pack(side='left')
 
+        # --- Row 2: Content page image (manual) ---
         f2 = tk.Frame(parent, bg='#E3F2FD')
         f2.pack(fill='x', pady=4)
 
@@ -186,9 +212,10 @@ class MainWindow:
         self.content_bg_label = tk.Label(f2, text='未选择', bg='#E3F2FD', fg='#999',
                                          font=('Microsoft YaHei', 9), width=30, anchor='w')
         self.content_bg_label.pack(side='left', padx=6)
-        tk.Button(f2, text='选择', font=('Microsoft YaHei', 9),
-                  bg='#1976D2', fg='white', relief='flat', padx=8,
-                  command=self._select_content_bg).pack(side='left')
+        self.content_bg_btn = tk.Button(f2, text='选择', font=('Microsoft YaHei', 9),
+                                        bg='#1976D2', fg='white', relief='flat', padx=8,
+                                        command=self._select_content_bg)
+        self.content_bg_btn.pack(side='left')
 
     # ---- Section 4: PPT settings + Generate ----
     def _build_generate_section(self, parent):
@@ -221,7 +248,7 @@ class MainWindow:
         self.gen_btn = tk.Button(btn_f, text='一键生成PPT', font=('Microsoft YaHei', 14, 'bold'),
                                  bg='#1976D2', fg='white', relief='flat',
                                  padx=30, pady=8, cursor='hand2',
-                                 command=self._generate_ppt)
+                                 command=self._generate_ppt, state='disabled')
         self.gen_btn.pack()
 
     # ---- Build everything ----
@@ -310,7 +337,7 @@ class MainWindow:
     def _select_speaker_files(self):
         paths = filedialog.askopenfilenames(
             title='选择演讲者资料',
-            filetypes=[('支持的格式', '*.docx;*.pptx;*.pdf'),
+            filetypes=[('支持的格式', '*.docx;*.doc;*.pptx;*.ppt;*.pdf'),
                        ('所有文件', '*.*')])
         if paths:
             self.speaker_files = list(paths)
@@ -358,6 +385,7 @@ class MainWindow:
                                      iid=name, tags=tags)
         count = len(self.speakers)
         self.speaker_count_var.set(f'共 {count} 位' if count else '')
+        self._check_generate_ready()
 
     def _clear_speakers(self):
         if not self.speakers:
@@ -376,6 +404,58 @@ class MainWindow:
         self._update_speaker_tree()
         self._hide_progress('演讲者数据已清空')
 
+    def _add_speaker(self):
+        """Manually add a new speaker entry."""
+        from extractors.speaker_extractor import Speaker
+        sp = Speaker(name='', title='教授')
+        # Use a unique placeholder key; _on_speaker_added will re-key by name
+        import uuid
+        placeholder = f'__new__{uuid.uuid4().hex[:6]}'
+        self.speakers[placeholder] = sp
+        SpeakerEditWindow(self.root, sp, lambda: self._on_speaker_added(placeholder))
+
+    def _on_speaker_added(self, placeholder):
+        """Called after saving a newly added speaker — fixes the dict key."""
+        sp = self.speakers.pop(placeholder, None)
+        if sp is None:
+            return
+        new_name = sp.name.strip()
+        if not new_name:
+            # User cleared the name — discard the entry
+            self._update_speaker_tree()
+            self._check_generate_ready()
+            return
+        # Handle name conflict: overwrite existing entry with same name
+        self.speakers[new_name] = sp
+        self._update_speaker_tree()
+        self._check_generate_ready()
+        self._hide_progress(f'已添加演讲者: {new_name}')
+
+    def _delete_speaker(self):
+        """Delete the selected speaker(s) from the list."""
+        selected = self.speaker_tree.selection()
+        if not selected:
+            messagebox.showwarning('提示', '请先在列表中选择要删除的演讲者')
+            return
+        names = [s for s in selected if s in self.speakers]
+        if not names:
+            return
+        ok = messagebox.askyesno('确认删除',
+                                  f'将删除以下 {len(names)} 位演讲者：\n\n'
+                                  + '\n'.join(names))
+        if not ok:
+            return
+        for name in names:
+            sp = self.speakers.pop(name, None)
+            if sp and sp.photo_path and os.path.exists(sp.photo_path):
+                try:
+                    os.remove(sp.photo_path)
+                except Exception:
+                    pass
+        self._update_speaker_tree()
+        self._check_generate_ready()
+        self._hide_progress(f'已删除 {len(names)} 位演讲者')
+
     def _on_speaker_double_click(self, event):
         item = self.speaker_tree.focus()
         if not item:
@@ -389,15 +469,18 @@ class MainWindow:
 
     def _select_agenda_image(self):
         path = filedialog.askopenfilename(
-            title='选择会议日程图片',
-            filetypes=[('图片', '*.jpg;*.jpeg;*.png'), ('所有文件', '*.*')])
+            title='选择会议日程文件',
+            filetypes=[('支持的格式', '*.jpg;*.jpeg;*.png;*.pptx;*.ppt;*.docx;*.doc;*.xlsx'),
+                       ('图片', '*.jpg;*.jpeg;*.png'),
+                       ('文档', '*.pptx;*.ppt;*.docx;*.doc;*.xlsx'),
+                       ('所有文件', '*.*')])
         if path:
             self.agenda_image_path = path
             self.agenda_file_label.config(text=os.path.basename(path))
 
     def _extract_agenda(self):
         if not hasattr(self, 'agenda_image_path'):
-            messagebox.showwarning('提示', '请先选择会议日程图片')
+            messagebox.showwarning('提示', '请先选择会议日程文件')
             return
         if not self.user.get('api_key'):
             messagebox.showwarning('提示', '请先在账户设置中配置 DeepSeek API Key')
@@ -431,6 +514,7 @@ class MainWindow:
                 item.order, item.time_slot, item.session_title_cn,
                 item.session_title_en, item.speaker_name, item.host,
                 item.item_type))
+        self._check_generate_ready()
 
     def _edit_agenda_cell(self, event):
         item_id = self.agenda_tree.focus()
@@ -525,6 +609,14 @@ class MainWindow:
         self.agenda_items.append(item)
         self._update_agenda_tree()
 
+    def _check_generate_ready(self):
+        """Enable the generate button only when all content is ready."""
+        ready = (bool(self.speakers)
+                 and bool(self.agenda_items)
+                 and bool(self.home_bg_path)
+                 and bool(self.content_bg_path))
+        self.gen_btn.config(state='normal' if ready else 'disabled')
+
     def _delete_agenda_row(self):
         selected = self.agenda_tree.selection()
         if not selected:
@@ -535,6 +627,64 @@ class MainWindow:
             del self.agenda_items[idx]
         self._update_agenda_tree()
 
+    # ---- Template upload ----
+    def _select_template(self):
+        path = filedialog.askopenfilename(
+            title='选择PPT模板',
+            filetypes=[('PPT文件', '*.pptx;*.ppt'), ('所有文件', '*.*')])
+        if not path:
+            return
+
+        self.template_btn.config(state='disabled')
+        self._show_progress('正在从PPT模板提取图片...')
+
+        def _run():
+            from utils.ppt_template_extractor import extract_slide_images
+            import tempfile
+            try:
+                out_dir = tempfile.mkdtemp(prefix='ppt_tpl_')
+                home_path, content_path = extract_slide_images(path, out_dir)
+                self.home_bg_path = home_path
+                self.content_bg_path = content_path
+                self.template_path = path
+            except Exception as e:
+                self.root.after(0, lambda err=e: messagebox.showerror(
+                    '提取失败', f'PPT模板提取失败: {err}'))
+                self.root.after(0, lambda: self.template_btn.config(state='normal'))
+                self.root.after(0, lambda: self._hide_progress(''))
+                return
+
+            self.root.after(0, self._on_template_loaded)
+
+        Thread(target=_run, daemon=True).start()
+
+    def _on_template_loaded(self):
+        self.template_label.config(text=os.path.basename(self.template_path), fg='#333')
+        self.template_clear_btn.config(state='normal')
+        self.template_btn.config(state='normal')
+        # Update manual labels to reflect extracted images
+        self.home_bg_label.config(text='(来自模板)', fg='#4CAF50')
+        self.content_bg_label.config(text='(来自模板)', fg='#4CAF50')
+        # Disable manual selection — mutually exclusive
+        self.home_bg_btn.config(state='disabled')
+        self.content_bg_btn.config(state='disabled')
+        self._check_generate_ready()
+        self._hide_progress('PPT模板图片提取完成')
+
+    def _clear_template(self):
+        self.template_path = ''
+        self.home_bg_path = ''
+        self.content_bg_path = ''
+        self.template_label.config(text='未选择', fg='#999')
+        self.template_clear_btn.config(state='disabled')
+        self.home_bg_label.config(text='未选择', fg='#999')
+        self.content_bg_label.config(text='未选择', fg='#999')
+        # Re-enable manual selection
+        self.home_bg_btn.config(state='normal')
+        self.content_bg_btn.config(state='normal')
+        self._check_generate_ready()
+        self._hide_progress('模板已清除')
+
     def _select_home_bg(self):
         path = filedialog.askopenfilename(
             title='选择首页背景图',
@@ -542,6 +692,9 @@ class MainWindow:
         if path:
             self.home_bg_path = path
             self.home_bg_label.config(text=os.path.basename(path))
+            # Clear template — mutually exclusive
+            self._clear_template_data()
+            self._check_generate_ready()
 
     def _select_content_bg(self):
         path = filedialog.askopenfilename(
@@ -550,6 +703,18 @@ class MainWindow:
         if path:
             self.content_bg_path = path
             self.content_bg_label.config(text=os.path.basename(path))
+            # Clear template — mutually exclusive
+            self._clear_template_data()
+            self._check_generate_ready()
+
+    def _clear_template_data(self):
+        """Clear template reference without UI updates (called by manual selectors)."""
+        if self.template_path:
+            self.template_path = ''
+            self.template_label.config(text='未选择', fg='#999')
+            self.template_clear_btn.config(state='disabled')
+            self.home_bg_btn.config(state='normal')
+            self.content_bg_btn.config(state='normal')
 
     def _generate_ppt(self):
         if not self.agenda_items:
@@ -570,14 +735,77 @@ class MainWindow:
         self._show_progress('正在生成PPT...')
 
         def _run():
-            from ppt_generator import generate_ppt
+            import subprocess
+            import json as _json
+            import tempfile
+            import sys
+
             try:
-                generate_ppt(self.agenda_items, self.speakers,
-                             self.home_bg_path, self.content_bg_path,
-                             self.size_var.get(), self.lang_var.get(), output_path)
+                size = self.size_var.get()
+                lang = self.lang_var.get()
+
+                # Serialize agenda items and speakers to dicts
+                agenda_dicts = []
+                for item in self.agenda_items:
+                    agenda_dicts.append({
+                        'order': item.order,
+                        'time_slot': item.time_slot,
+                        'session_title_cn': item.session_title_cn,
+                        'session_title_en': item.session_title_en,
+                        'speaker_name': item.speaker_name,
+                        'host': item.host,
+                        'institution': item.institution,
+                        'item_type': item.item_type,
+                    })
+                speaker_dicts = {}
+                for name, sp in self.speakers.items():
+                    speaker_dicts[name] = {
+                        'name': sp.name,
+                        'photo_path': sp.photo_path,
+                        'bio': sp.bio,
+                        'institution': sp.institution,
+                        'title': sp.title,
+                    }
+
+                params = {
+                    'agenda_items': agenda_dicts,
+                    'speakers': speaker_dicts,
+                    'home_bg': self.home_bg_path,
+                    'content_bg': self.content_bg_path,
+                    'slide_size': size,
+                    'lang': lang,
+                    'output_path': output_path,
+                }
+
+                # Write params to temp JSON file
+                with tempfile.NamedTemporaryFile(
+                        mode='w', suffix='.json', delete=False,
+                        encoding='utf-8', prefix='ppt_params_') as tmp:
+                    _json.dump(params, tmp, ensure_ascii=False)
+                    params_path = tmp.name
+
+                # Build command
+                script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                script_path = os.path.join(script_dir, 'ppt_generator.py')
+                cmd = [sys.executable, script_path, params_path]
+                print(f'[PPT Generator] {" ".join(cmd)}')
+
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+                if result.stdout:
+                    print(result.stdout)
+                if result.stderr:
+                    print(result.stderr, file=sys.stderr)
+                if result.returncode != 0:
+                    raise RuntimeError(f'PPT生成失败 (exit={result.returncode}): {result.stderr}')
             except Exception as e:
                 self.root.after(0, lambda err=e: messagebox.showerror(
                     '生成失败', str(err)))
+            finally:
+                # Clean up temp file
+                try:
+                    os.unlink(params_path)
+                except Exception:
+                    pass
             self.root.after(0, lambda: self._hide_progress(
                 f'PPT已生成: {os.path.basename(output_path)}'))
             self.root.after(0, lambda: self.gen_btn.config(state='normal'))
