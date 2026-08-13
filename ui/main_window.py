@@ -462,10 +462,26 @@ class MainWindow:
             return
         sp = self.speakers.get(item)
         if sp:
-            SpeakerEditWindow(self.root, sp, self._on_speaker_updated)
+            SpeakerEditWindow(self.root, sp,
+                              lambda: self._on_speaker_updated(item))
 
-    def _on_speaker_updated(self):
+    def _on_speaker_updated(self, old_name):
+        """Called after editing an existing speaker — re-keys the dict
+        if the name changed (speakers dict is keyed by name)."""
+        sp = self.speakers.pop(old_name, None)
+        if sp is None:
+            self._update_speaker_tree()
+            return
+        new_name = sp.name.strip()
+        if not new_name:
+            # Name cleared — discard the entry
+            self._update_speaker_tree()
+            self._check_generate_ready()
+            return
+        # Overwrite any existing entry with the same name
+        self.speakers[new_name] = sp
         self._update_speaker_tree()
+        self._check_generate_ready()
 
     def _select_agenda_image(self):
         path = filedialog.askopenfilename(
@@ -763,6 +779,7 @@ class MainWindow:
                         'name': sp.name,
                         'photo_path': sp.photo_path,
                         'bio': sp.bio,
+                        'bio_en': getattr(sp, 'bio_en', ''),
                         'institution': sp.institution,
                         'title': sp.title,
                     }
@@ -901,13 +918,29 @@ class SpeakerEditWindow:
         bio_frame.pack(fill='both', expand=True, pady=(0, 10))
         self.bio_text = tk.Text(bio_frame, font=('Microsoft YaHei', 10),
                                 wrap='word', relief='flat', borderwidth=4,
-                                height=8)
+                                height=6)
         self.bio_text.insert('1.0', self.speaker.bio)
         bio_scroll = ttk.Scrollbar(bio_frame, orient='vertical',
                                    command=self.bio_text.yview)
         self.bio_text.configure(yscrollcommand=bio_scroll.set)
         self.bio_text.pack(side='left', fill='both', expand=True)
         bio_scroll.pack(side='right', fill='y')
+
+        # English bio — second bio page for English-named speakers
+        tk.Label(f, text='英文履历', font=('Microsoft YaHei', 11, 'bold'),
+                 bg='#E3F2FD', fg='#1F4E79').pack(anchor='w', pady=(8, 2))
+        bio_en_frame = tk.Frame(f, bg='white', highlightbackground='#BBDEFB',
+                                highlightthickness=1)
+        bio_en_frame.pack(fill='both', expand=True, pady=(0, 10))
+        self.bio_en_text = tk.Text(bio_en_frame, font=('Microsoft YaHei', 10),
+                                   wrap='word', relief='flat', borderwidth=4,
+                                   height=6)
+        self.bio_en_text.insert('1.0', getattr(self.speaker, 'bio_en', ''))
+        bio_en_scroll = ttk.Scrollbar(bio_en_frame, orient='vertical',
+                                      command=self.bio_en_text.yview)
+        self.bio_en_text.configure(yscrollcommand=bio_en_scroll.set)
+        self.bio_en_text.pack(side='left', fill='both', expand=True)
+        bio_en_scroll.pack(side='right', fill='y')
 
         # Buttons
         btn_row = tk.Frame(f, bg='#E3F2FD')
@@ -969,5 +1002,6 @@ class SpeakerEditWindow:
         self.speaker.title = self.title_var.get().strip()
         self.speaker.institution = self.inst_var.get().strip()
         self.speaker.bio = self.bio_text.get('1.0', 'end-1c')
+        self.speaker.bio_en = self.bio_en_text.get('1.0', 'end-1c')
         self.on_save()
         self.win.destroy()

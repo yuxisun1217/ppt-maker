@@ -38,7 +38,8 @@ AGENDA_SCHEMA = (
     '也必须提取，type设为"section"，只填order和session_title_cn，其他字段留空。\n'
     '\n'
     '返回格式：{"agenda": [...]}\n'
-    '注意：严格按时间顺序排列，speaker_name只保留姓名不含职务。\n'
+    '注意：严格按时间顺序排列。\n'
+    'speaker_name和host只保留姓名，删除所有职称/职务（如"教授""主任""院长"等），只留纯姓名。\n'
 )
 
 OCR_PROMPT = (

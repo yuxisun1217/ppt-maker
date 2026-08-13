@@ -89,12 +89,46 @@ CFG_ULTRAWIDE = {
 # ---------------------------------------------------------------------------
 
 def _split_names(name_str):
-    """Split a name string into individual names. Handles multi-person entries."""
+    """Split a name string into individual names. Handles multi-person entries
+    and keeps English names (e.g. "Theo M. de Reijke") as one person."""
     if not name_str or not name_str.strip():
         return []
     # Split by common delimiters: Chinese comma, English comma, semicolon, slash, etc.
     parts = re.split(r'[,，、/；;]+|\s+和\s+|\s+与\s+', name_str)
-    return [p.strip() for p in parts if p.strip() and len(p.strip()) >= 1]
+    # Also split "王艳波 教授 王凯臣 教授" by whitespace, dropping title tokens
+    titles = {'教授', '主任', '主任医师', '副主任医师', '主治医师', '医师',
+              '院长', '副院长', '博士', '院士', '研究员', '副研究员', '主席',
+              'Prof', 'Prof.', 'Dr', 'Dr.', 'MD', 'PhD', 'Mr', 'Mr.', 'Ms', 'Ms.'}
+    names = []
+    for p in parts:
+        buf = []  # pending English-name tokens, joined back into one name
+        for token in re.split(r'\s+', p.strip()):
+            if not token:
+                continue
+            if token in titles:
+                if buf:
+                    names.append(' '.join(buf))
+                    buf = []
+                continue
+            if re.fullmatch(r'[一-鿿]{1,4}', token):
+                # Chinese name token — starts a new person
+                if buf:
+                    names.append(' '.join(buf))
+                    buf = []
+                names.append(token)
+            else:
+                # English name fragment (e.g. "Theo", "M.", "de", "Reijke")
+                buf.append(token)
+        if buf:
+            names.append(' '.join(buf))
+    return names
+
+
+def _spread_name(name):
+    """Insert a space in 2-char Chinese names for alignment: 陈晨 → 陈 晨"""
+    if len(name) == 2 and re.fullmatch(r'[一-鿿]{2}', name):
+        return f'{name[0]} {name[1]}'
+    return name
 
 
 def _match_speaker(speaker_name, speakers):
@@ -253,7 +287,7 @@ def _make_countdown(prs, home_bg, cfg, cn_text, en_text, bilingual):
     return slide
 
 
-def _make_divider(prs, home_bg, cfg, title_cn, title_en, bilingual, speaker_name=''):
+def _make_divider(prs, home_bg, cfg, title_cn, title_en, bilingual, speaker_line=''):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     _add_bg(slide, home_bg, cfg['width'], cfg['height'])
     d = cfg['divider']
@@ -266,19 +300,46 @@ def _make_divider(prs, home_bg, cfg, title_cn, title_en, bilingual, speaker_name
     _add_textbox(slide, Inches(0.5), d['title_top'], w - Inches(1), d['title_h'],
                  full_title, d['title_sz'], color=d['title_color'], bold=True)
 
-    if speaker_name:
-        _add_textbox(slide, Inches(0.5), d['speaker_top'], w - Inches(1), d['speaker_h'],
-                     speaker_name, d['speaker_sz'], color=d['speaker_color'], bold=True)
+    if speaker_line:
+        # If title is long (>22 chars), shift speaker down by one title line height
+        speaker_top = d['speaker_top']
+        if len(full_title) > 22:
+            speaker_top += d['title_sz']
+        line_count = speaker_line.count('\n') + 1
+        speaker_h = d['speaker_h'] * line_count
+        _add_textbox(slide, Inches(0.5), speaker_top, w - Inches(1), speaker_h,
+                     speaker_line, d['speaker_sz'], color=d['speaker_color'], bold=True)
     return slide
 
 
-def _make_bio(prs, content_bg, cfg, speaker, role_label=''):
+ROLE_LABELS_EN = {
+    '大会主席': 'Chairman',
+    '分会场主席': 'Session Chair',
+    '总结嘉宾': 'Closing Remarks',
+    '主讲嘉宾': 'Speaker',
+    '主持嘉宾': 'Moderator',
+    '嘉宾': 'Guest',
+}
+
+
+def _make_bio(prs, content_bg, cfg, speaker, role_label='', en=False):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     _add_bg(slide, content_bg, cfg['width'], cfg['height'])
     w = cfg['width']
 
     has_photo = bool(speaker.photo_path and os.path.exists(speaker.photo_path))
     bp = cfg['bio_photo'] if has_photo else cfg['bio_nophoto']
+
+    if en:
+        bio_text = speaker.bio_en
+        name_display = f'Prof. {speaker.name}'
+        if role_label:
+            role_label = ROLE_LABELS_EN.get(role_label, role_label)
+    else:
+        bio_text = speaker.bio
+        name_display = speaker.name
+        if speaker.title:
+            name_display = f'{speaker.name} {speaker.title}'
 
     if role_label:
         _add_textbox(slide, bp['bio_left'], bp['role_top'], bp['bio_w'], bp['role_h'],
@@ -368,10 +429,7 @@ def _make_bio(prs, content_bg, cfg, speaker, role_label=''):
             pass
 
         # Name + title on line 1, institution on line 2
-        name_title = speaker.name
-        if speaker.title:
-            name_title = f'{speaker.name} {speaker.title}'
-        info_lines = [name_title]
+        info_lines = [name_display]
         if speaker.institution:
             info_lines.append(speaker.institution)
         if info_lines:
@@ -381,10 +439,13 @@ def _make_bio(prs, content_bg, cfg, speaker, role_label=''):
                                    align=PP_ALIGN.CENTER, bold=True)
 
     # Bio text (split into lines)
-    raw_lines = [l.strip() for l in speaker.bio.replace('\r', '').split('\n') if l.strip()]
+    raw_lines = [l.strip() for l in bio_text.replace('\r', '').split('\n') if l.strip()]
     if not raw_lines:
         # Speaker bio is missing — show fallback text
-        fallback = f'{speaker.name}（信息缺失）'
+        if en:
+            fallback = f'{speaker.name} (No information available)'
+        else:
+            fallback = f'{speaker.name}（信息缺失）'
         _add_textbox(slide, bp['bio_left'], bp['bio_top'],
                      bp['bio_w'], Inches(1.2),
                      fallback, Pt(20),
@@ -428,14 +489,16 @@ def _make_bio(prs, content_bg, cfg, speaker, role_label=''):
         bio_sz = bp['bio_sz']
         FS_pt = bio_sz / 12700
 
-    # Fixed line spacing rules based on effective line count
-    # (multiplier × default line height ≈ 1.2×FS; extra = (multiplier−1) × 1.2×FS)
-    if N_visual < 8:
-        bio_spacing = FS_pt * 1.2     # 2× spacing
-    elif N_visual < 10:
-        bio_spacing = FS_pt * 0.6     # 1.5× spacing
-    else:
-        bio_spacing = 0               # 1× spacing (single)
+    # # Fixed line spacing rules based on effective line count
+    # # (multiplier × default line height ≈ 1.2×FS; extra = (multiplier−1) × 1.2×FS)
+    # if N_visual <= 8:
+    #     bio_spacing = FS_pt * 1.2     # 2× spacing
+    # elif N_visual <= 12:
+    #     bio_spacing = FS_pt * 0.6     # 1.5× spacing
+    # else:
+    #     bio_spacing = 0.12               # 1.1× spacing (single)
+    # 基础偏移量定为 1.2，让 8 行时大约是 2倍，12行时大约是 1.5倍
+    bio_spacing = FS_pt * max(0, 2.4 - 0.15 * N_visual) # 用max确保不会变成负数
 
     _add_multiline_textbox(slide, bp['bio_left'], bp['bio_top'],
                            bp['bio_w'], bp['bio_h'],
@@ -524,16 +587,52 @@ def generate_ppt(agenda_items, speakers, home_bg, content_bg,
 
     # 3. Per-agenda-item slide groups
     for item in agenda_items:
-        # Divider: format speaker line "姓名 职称" (only for matched speakers)
-        speaker_line = ''
-        if item.speaker_name:
+        # Divider: format speaker/host lines with role labels
+        role_map_divider = {
+            'opening': '大会主席',
+            'closing': '总结嘉宾',
+            'speech': '主讲嘉宾',
+            'panel': '主讲嘉宾',
+        }
+        speaker_role = role_map_divider.get(item.item_type, '主讲嘉宾')
+
+        def _format_name(name):
+            sp = _match_speaker(name, speakers)
+            display = sp.name if sp else name
+            if re.search(r'[A-Za-z]', display):
+                # English name — prefix with "Prof. "
+                return f'Prof. {display}'
+            if sp and sp.title:
+                return f'{_spread_name(display)} {sp.title}'
+            return f'{_spread_name(display)} 教授'
+
+        def _format_persons(name_str, role_label):
+            if not name_str:
+                return ''
+            parts = [_format_name(name) for name in _split_names(name_str)]
+            return f'{role_label}：{"、".join(parts)}' if parts else ''
+
+        if item.item_type in ('opening', 'closing'):
+            # Opening/closing divider: merge speakers + hosts, dedupe by
+            # name, show "姓名 职称" only — no role labels
+            seen = set()
             parts = []
-            for name in _split_names(item.speaker_name):
-                sp = _match_speaker(name, speakers)
-                if sp:
-                    title_part = f' {sp.title}' if sp.title else ''
-                    parts.append(f'{sp.name}{title_part}')
-            speaker_line = '、'.join(parts) if parts else ''
+            for name_str in (item.speaker_name, item.host):
+                for name in _split_names(name_str):
+                    if name in seen:
+                        continue
+                    seen.add(name)
+                    parts.append(_format_name(name))
+            speaker_line = '、'.join(parts)
+        else:
+            lines = []
+            sp_line = _format_persons(item.speaker_name, speaker_role)
+            if sp_line:
+                lines.append(sp_line)
+            host_line = _format_persons(item.host, '主持嘉宾')
+            if host_line:
+                lines.append(host_line)
+            speaker_line = '\n'.join(lines)
         _make_divider(prs, content_bg, cfg,
                       item.session_title_cn, item.session_title_en,
                       bilingual, speaker_line)
@@ -562,10 +661,25 @@ def generate_ppt(agenda_items, speakers, home_bg, content_bg,
         for name in _split_names(item.host):
             persons.append((name, host_role))
 
+        # Opening/closing: each person gets only one bio page
+        # (speaker and host lists often overlap, e.g. 主席致辞)
+        if item.item_type in ('opening', 'closing'):
+            seen = set()
+            deduped = []
+            for name, label in persons:
+                if name in seen:
+                    continue
+                seen.add(name)
+                deduped.append((name, label))
+            persons = deduped
+
         for person_name, label in persons:
             sp = _match_speaker(person_name, speakers)
             if sp:
                 _make_bio(prs, content_bg, cfg, sp, label)
+                # English-named speakers get a second bio page in English
+                if re.search(r'[A-Za-z]', sp.name) and sp.bio_en:
+                    _make_bio(prs, content_bg, cfg, sp, label, en=True)
             else:
                 _make_bio(prs, content_bg, cfg,
                           Speaker(name=person_name, bio=item.institution), label)
@@ -615,6 +729,7 @@ if __name__ == '__main__':
             name=d['name'],
             photo_path=d['photo_path'],
             bio=d['bio'],
+            bio_en=d.get('bio_en', ''),
             institution=d['institution'],
             title=d['title'],
         )

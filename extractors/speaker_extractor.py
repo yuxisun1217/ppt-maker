@@ -53,6 +53,7 @@ class Speaker:
     name: str
     photo_path: str = ''
     bio: str = ''
+    bio_en: str = ''
     institution: str = ''
     title: str = ''
 
@@ -567,6 +568,33 @@ def _resolve_institution(short_name: str, api_key: str) -> str:
     return ''
 
 
+def _translate_bio_en(bio: str, api_key: str) -> str:
+    """Translate a Chinese bio into English via DeepSeek.
+
+    Returns the translated multi-line text, or empty string on failure.
+    """
+    import json
+    from utils.deepseek_client import structure_text
+
+    prompt = (
+        '请将以下中文履历逐行翻译成英文，返回JSON格式：'
+        '{"bio_en": ["第一行英文", "第二行英文"]}\n'
+        '保持原文的行结构：一行对应一行，不要合并或拆分。\n'
+        '医学专业术语使用标准英文表达。\n'
+        '不要添加任何原文没有的内容。\n\n'
+        '履历：\n' + bio
+    )
+    try:
+        result = structure_text(bio, prompt, api_key)
+        data = json.loads(result)
+        lines = data.get('bio_en', [])
+        if isinstance(lines, str):
+            return lines
+        return '\n'.join(str(l) for l in lines)
+    except Exception:
+        return ''
+
+
 def extract_speaker(file_path: str, api_key: str) -> Speaker:
     """
     Extract speaker info from a file (docx/doc/pptx/ppt/pdf).
@@ -630,6 +658,21 @@ def extract_speaker(file_path: str, api_key: str) -> Speaker:
         if not raw_text:
             raise RuntimeError(f'未能从文件中提取到文字: {file_path}')
 
+        # Drop the resume header line (e.g. "朱颜铂 教授") so the name/title
+        # doesn't pollute the bio
+        # PPTX paragraph soft-breaks use \x0b — treat as line separators too
+        lines = re.split(r'[\n\x0b]', raw_text)
+        first = lines[0].strip() if lines else ''
+        if first and name_from_file:
+            if first == name_from_file:
+                del lines[0]
+            else:
+                rest = re.sub(rf'^{re.escape(name_from_file)}\s*', '', first)
+                # Name + short title (教授/主任医师/院长 etc.)
+                if rest != first and len(rest) <= 8:
+                    del lines[0]
+        raw_text = '\n'.join(lines)
+
         # Use DeepSeek to structure the text
         from utils.deepseek_client import structure_text
 
@@ -690,10 +733,19 @@ def extract_speaker(file_path: str, api_key: str) -> Speaker:
         if isinstance(bio, list):
             bio = '\n'.join(bio)
 
+        # English-named speakers get a translated bio for the second page
+        bio_en = ''
+        if bio and re.search(r'[A-Za-z]', data.get('name', '')):
+            try:
+                bio_en = _translate_bio_en(bio, api_key)
+            except Exception:
+                pass
+
         return Speaker(
             name=data.get('name', ''),
             photo_path=photo_path,
             bio=bio,
+            bio_en=bio_en,
             institution=institution,
             title='教授',
         )
