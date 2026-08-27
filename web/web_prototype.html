@@ -1,0 +1,1685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会议串场PPT生成器 · Web原型</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        medical: {
+          50:  '#EFF7FA',
+          100: '#DEEEF5',
+          200: '#BDDCEC',
+          300: '#8FC4DC',
+          400: '#4FA1C1',
+          500: '#1A7B9E',
+          600: '#14637F',
+          700: '#115368',
+          800: '#0E4253',
+          900: '#0B3542',
+        },
+      },
+      fontFamily: {
+        sans: ['-apple-system','BlinkMacSystemFont','PingFang SC','Microsoft YaHei','Noto Sans SC','Segoe UI','sans-serif'],
+      },
+    },
+  },
+}
+</script>
+<style>
+  /* 进度条斜纹动画 */
+  @keyframes stripe {
+    from { background-position: 1rem 0; }
+    to   { background-position: 0 0; }
+  }
+  .progress-striped {
+    background-image: linear-gradient(45deg,
+      rgba(255,255,255,.28) 25%, transparent 25%, transparent 50%,
+      rgba(255,255,255,.28) 50%, rgba(255,255,255,.28) 75%,
+      transparent 75%, transparent);
+    background-size: 1rem 1rem;
+    animation: stripe 1s linear infinite;
+  }
+  ::selection { background: #BDDCEC; }
+</style>
+</head>
+
+<body class="bg-[#F4F7F9] min-h-screen text-gray-800 font-sans antialiased">
+
+<!-- ======================= 顶部导航 ======================= -->
+<header class="bg-white border-b border-gray-200 sticky top-0 z-40">
+  <div class="max-w-[1280px] mx-auto px-6 h-16 flex items-center justify-between">
+    <!-- Logo 区 -->
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-medical-500 flex items-center justify-center shadow-sm shadow-medical-200">
+        <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 3.5h4a1 1 0 0 1 1 1V9.5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4.5a1 1 0 0 1 1-1Z" clip-rule="evenodd"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-[17px] font-bold text-gray-900 leading-tight">会议串场PPT生成器</h1>
+        <p class="text-[11px] text-gray-400 leading-tight tracking-wide">Conference Host Script PPT Generator</p>
+      </div>
+      <span class="ml-3 hidden md:inline-flex items-center gap-1 rounded-full bg-medical-50 border border-medical-200 px-2.5 py-0.5 text-[11px] font-medium text-medical-600">
+        医疗会议版 · UI原型
+      </span>
+    </div>
+
+    <!-- 右侧操作 -->
+    <div class="flex items-center gap-3">
+      <button type="button" id="btn-new-task" class="inline-flex items-center gap-1.5 rounded-lg border border-medical-200 bg-white px-3.5 py-2 text-sm text-medical-600 font-medium hover:bg-medical-50 transition cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        新建任务
+      </button>
+      <span id="backend-status" class="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">检测后端…</span>
+      <button type="button" id="btn-account" class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm text-gray-500 font-medium hover:bg-gray-100 hover:text-gray-700 transition cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+        账户设置
+      </button>
+      <div id="user-box" class="flex items-center gap-2.5 pl-3 border-l border-gray-200">
+        <div id="user-avatar" class="w-9 h-9 rounded-full bg-gradient-to-br from-medical-400 to-medical-600 text-white flex items-center justify-center text-sm font-semibold">…</div>
+        <div class="hidden sm:block leading-tight">
+          <p id="user-name" class="text-sm font-medium text-gray-800">加载中…</p>
+          <p id="user-role" class="text-[11px] text-gray-400">—</p>
+        </div>
+        <a id="link-admin" href="admin.html" class="hidden text-xs text-medical-500 hover:text-medical-700 font-medium ml-1">用户管理</a>
+        <button type="button" id="btn-logout" class="text-xs text-gray-400 hover:text-red-500 transition cursor-pointer ml-1">退出</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ======================= 主体 ======================= -->
+<div class="max-w-[1280px] mx-auto px-6 py-6 flex gap-6 items-start">
+
+  <!-- ============ 左侧：历史记录侧边栏 ============ -->
+  <aside class="w-[270px] shrink-0 hidden lg:block sticky top-[88px]">
+    <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+      <div class="px-4 py-3.5 border-b border-gray-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-4.5 h-4.5 w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+          <h2 class="text-sm font-semibold text-gray-800">历史记录</h2>
+        </div>
+        <span id="history-count" class="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">0 条</span>
+      </div>
+
+      <!-- 搜索框 -->
+      <div class="px-4 py-3">
+        <div class="relative">
+          <svg class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+          <input type="text" id="history-search" placeholder="搜索会议名称..." class="w-full rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-medical-200 focus:border-medical-300">
+        </div>
+      </div>
+
+      <!-- 记录列表（由 JS 渲染本机历史） -->
+      <div id="history-list" class="divide-y divide-gray-100 max-h-[560px] overflow-y-auto"></div>
+
+      <div class="px-4 py-3 border-t border-gray-100">
+        <button type="button" id="btn-clear-history" class="w-full rounded-lg border border-dashed border-medical-200 text-medical-500 text-xs py-2 font-medium hover:bg-medical-50 transition cursor-pointer">清空历史记录</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ 右侧：三步工作流 ============ -->
+  <main class="flex-1 min-w-0">
+
+    <!-- 步骤切换（纯 CSS radio，无 JS） -->
+    <div class="relative">
+      <input type="radio" name="workflow" id="w1" class="sr-only peer/w1" checked>
+      <input type="radio" name="workflow" id="w2" class="sr-only peer/w2">
+      <input type="radio" name="workflow" id="w3" class="sr-only peer/w3">
+
+      <!-- 步骤条 -->
+      <div class="flex items-center gap-2 mb-6 flex-wrap">
+        <label for="w1" class="cursor-pointer inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium border transition
+                     peer-checked/w1:bg-medical-500 peer-checked/w1:text-white peer-checked/w1:border-medical-500 peer-checked/w1:shadow-md peer-checked/w1:shadow-medical-200
+                     bg-white text-gray-500 border-gray-200 hover:border-medical-300">
+          <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                       peer-checked/w1:bg-white/20 peer-checked/w1:text-white bg-medical-100 text-medical-600">1</span>
+          上传资料
+        </label>
+        <svg class="w-4 h-4 text-gray-300 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+        <label for="w2" class="cursor-pointer inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium border transition
+                     peer-checked/w2:bg-medical-500 peer-checked/w2:text-white peer-checked/w2:border-medical-500 peer-checked/w2:shadow-md peer-checked/w2:shadow-medical-200
+                     bg-white text-gray-500 border-gray-200 hover:border-medical-300">
+          <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                       peer-checked/w2:bg-white/20 peer-checked/w2:text-white bg-medical-100 text-medical-600">2</span>
+          配置与预览
+        </label>
+        <svg class="w-4 h-4 text-gray-300 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+        <label for="w3" class="cursor-pointer inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium border transition
+                     peer-checked/w3:bg-medical-500 peer-checked/w3:text-white peer-checked/w3:border-medical-500 peer-checked/w3:shadow-md peer-checked/w3:shadow-medical-200
+                     bg-white text-gray-500 border-gray-200 hover:border-medical-300">
+          <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                       peer-checked/w3:bg-white/20 peer-checked/w3:text-white bg-medical-100 text-medical-600">3</span>
+          生成与下载
+        </label>
+      </div>
+
+      <!-- ============ 步骤 1：上传资料 ============ -->
+      <section class="hidden peer-checked/w1:block space-y-5">
+
+        <!-- 演讲者资料 -->
+        <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg bg-medical-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+              </div>
+              <div>
+                <h3 class="text-[15px] font-semibold text-gray-800">演讲者资料</h3>
+                <p class="text-xs text-gray-400 mt-0.5">上传 DOCX / PDF / PPTX 格式的演讲者履历，AI 自动提取姓名、医院、履历与照片</p>
+              </div>
+            </div>
+            <span class="text-[11px] text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">支持批量上传</span>
+          </div>
+
+          <!-- 拖拽/点击上传区（演讲者资料，支持批量） -->
+          <div id="dz-speaker" class="rounded-xl border-2 border-dashed border-medical-300 bg-medical-50/50 px-6 py-8 text-center cursor-pointer hover:bg-medical-50 hover:border-medical-400 transition">
+            <input type="file" id="input-speaker" class="hidden" multiple accept=".docx,.doc,.pptx,.ppt,.pdf">
+            <div class="mx-auto w-14 h-14 rounded-full bg-white border border-medical-100 flex items-center justify-center shadow-sm mb-3">
+              <svg class="w-7 h-7 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z"/></svg>
+            </div>
+            <p class="text-sm text-gray-600">拖拽文件到此处，或 <span class="text-medical-500 font-medium">点击选择文件</span></p>
+            <p class="text-xs text-gray-400 mt-1.5">支持 .docx .doc .pptx .ppt .pdf · 单个文件 ≤ 20MB · 支持批量上传</p>
+            <div id="chips-speaker" class="mt-5 flex flex-wrap items-center justify-center gap-2"></div>
+          </div>
+        </div>
+
+        <!-- 会议日程 -->
+        <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg bg-medical-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+              </div>
+              <div>
+                <h3 class="text-[15px] font-semibold text-gray-800">会议日程</h3>
+                <p class="text-xs text-gray-400 mt-0.5">上传日程截图或文档，OCR + AI 自动识别环节、讲者与主持人</p>
+              </div>
+            </div>
+            <span class="text-[11px] text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">jpg / png / pptx / docx / xlsx</span>
+          </div>
+
+          <div id="dz-agenda" class="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 px-6 py-8 text-center cursor-pointer hover:bg-medical-50/60 hover:border-medical-300 transition">
+            <input type="file" id="input-agenda" class="hidden" accept=".jpg,.jpeg,.png,.pptx,.ppt,.docx,.doc,.xlsx">
+            <div class="mx-auto w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-sm mb-3">
+              <svg class="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z"/></svg>
+            </div>
+            <p class="text-sm text-gray-600">拖拽日程图片 / 文档到此处，或 <span class="text-medical-500 font-medium">点击选择文件</span></p>
+            <p class="text-xs text-gray-400 mt-1.5">推荐上传清晰的日程图片 · 支持 .jpg .jpeg .png .pptx .ppt .docx .doc .xlsx</p>
+            <div id="chip-agenda" class="mt-5 flex flex-wrap items-center justify-center gap-2"></div>
+          </div>
+        </div>
+
+        <!-- 背景图（可选） -->
+        <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg bg-medical-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 1 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+              </div>
+              <div>
+                <h3 class="text-[15px] font-semibold text-gray-800">PPT模版或背景图（可选）</h3>
+                <p class="text-xs text-gray-400 mt-0.5">上传背景图片，或上传 .pptx 模版自动提取首页/内容页背景</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div id="dz-bg-home" class="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 px-6 py-7 text-center cursor-pointer hover:bg-medical-50/60 hover:border-medical-300 transition">
+              <input type="file" id="input-bg-home" class="hidden" accept=".jpg,.jpeg,.png">
+              <div class="mx-auto w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-sm mb-3">
+                <svg class="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 1 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+              </div>
+              <p class="text-sm text-gray-600">首页背景 <span class="text-medical-500 font-medium">（点击上传）</span></p>
+              <p class="text-xs text-gray-400 mt-1.5">.jpg .jpeg .png · 可选</p>
+              <div id="chip-bg-home" class="mt-3 flex flex-wrap items-center justify-center gap-2"></div>
+            </div>
+            <div id="dz-bg-content" class="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 px-6 py-7 text-center cursor-pointer hover:bg-medical-50/60 hover:border-medical-300 transition">
+              <input type="file" id="input-bg-content" class="hidden" accept=".jpg,.jpeg,.png">
+              <div class="mx-auto w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-sm mb-3">
+                <svg class="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6"/></svg>
+              </div>
+              <p class="text-sm text-gray-600">内容页背景 <span class="text-medical-500 font-medium">（点击上传）</span></p>
+              <p class="text-xs text-gray-400 mt-1.5">.jpg .jpeg .png · 可选</p>
+              <div id="chip-bg-content" class="mt-3 flex flex-wrap items-center justify-center gap-2"></div>
+            </div>
+          </div>
+
+          <!-- PPT 模版上传（自动提取背景） -->
+          <div id="dz-bg-template" class="mt-4 rounded-xl border-2 border-dashed border-medical-200 bg-medical-50/40 px-6 py-5 cursor-pointer hover:bg-medical-50 hover:border-medical-400 transition">
+            <input type="file" id="input-bg-template" class="hidden" accept=".pptx">
+            <div class="flex items-center justify-center gap-4 flex-wrap">
+              <div class="w-12 h-12 rounded-xl bg-medical-500 flex items-center justify-center shadow-sm">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+              </div>
+              <div class="text-left">
+                <p class="text-sm text-gray-700 font-medium">上传 PPT 模版 <span class="text-medical-500">（自动提取首页/内容页背景）</span></p>
+                <p class="text-xs text-gray-400 mt-1">.pptx · 提取后自动填充上方两个背景槽位，也可单独上传背景图片</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <div class="flex justify-end">
+          <label for="w2" id="nav-w1-next" class="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-medical-500 hover:bg-medical-600 text-white px-6 py-2.5 text-sm font-medium shadow-sm shadow-medical-200 transition">
+            下一步：配置与预览
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+          </label>
+        </div>
+      </section>
+
+      <!-- ============ 步骤 2：配置与预览 ============ -->
+      <section class="hidden peer-checked/w2:block space-y-5">
+
+        <!-- 资料确认 -->
+        <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg bg-medical-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+              </div>
+              <div>
+                <h3 class="text-[15px] font-semibold text-gray-800">资料确认</h3>
+                <p class="text-xs text-gray-400 mt-0.5">以下文件用于 AI 识别；可在下方「资料解析」中提前解析并编辑结果</p>
+              </div>
+            </div>
+            <button type="button" id="btn-back-upload" class="inline-flex items-center gap-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 px-3.5 py-2 text-xs font-medium transition cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              补充文件
+            </button>
+          </div>
+
+          <div class="divide-y divide-gray-100 text-sm">
+            <div class="px-6 py-3.5 flex items-center gap-3">
+              <div class="w-9 h-9 shrink-0 rounded-lg bg-amber-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="font-medium text-gray-800">会议日程</p>
+                <p id="confirm-agenda" class="text-xs text-gray-400 mt-0.5 truncate">未上传</p>
+              </div>
+              <span class="text-xs text-red-400 shrink-0">必填</span>
+            </div>
+            <div class="px-6 py-3.5 flex items-center gap-3">
+              <div class="w-9 h-9 shrink-0 rounded-lg bg-medical-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="font-medium text-gray-800">演讲者资料</p>
+                <p id="confirm-speakers" class="text-xs text-gray-400 mt-0.5 truncate">未上传（可选）</p>
+              </div>
+              <span class="text-xs text-gray-400 shrink-0">可选</span>
+            </div>
+            <div class="px-6 py-3.5 flex items-center gap-3">
+              <div class="w-9 h-9 shrink-0 rounded-lg bg-emerald-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 1 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="font-medium text-gray-800">PPT模版或背景图</p>
+                <p id="confirm-bg" class="text-xs text-gray-400 mt-0.5 truncate">未上传（可选）</p>
+              </div>
+              <span class="text-xs text-gray-400 shrink-0">可选</span>
+            </div>
+          </div>
+
+          <p class="flex items-center gap-1.5 text-[11px] text-gray-400 px-6 py-3 bg-gray-50/60">
+            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>
+            未解析时日程与演讲者识别在生成阶段自动完成；也可在下方「资料解析」中提前解析、编辑后再生成。
+          </p>
+        </div>
+
+        <!-- 资料解析：手动触发 AI 解析 + 可编辑结果 -->
+        <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg bg-medical-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"/></svg>
+              </div>
+              <div>
+                <h3 class="text-[15px] font-semibold text-gray-800">资料解析（可选）</h3>
+                <p class="text-xs text-gray-400 mt-0.5">AI 解析日程与演讲者资料为可编辑条目；生成时直接使用编辑后的结果，不再重新解析</p>
+              </div>
+            </div>
+            <button type="button" id="btn-parse" class="inline-flex items-center gap-1.5 rounded-lg bg-medical-500 hover:bg-medical-600 text-white px-4 py-2 text-sm font-medium transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+              <span id="parse-btn-label">解析资料</span>
+            </button>
+          </div>
+          <div class="px-6 py-3.5 flex items-center gap-2.5 text-xs bg-gray-50/60">
+            <span id="parse-status-dot" class="w-2 h-2 rounded-full bg-gray-300 shrink-0"></span>
+            <span id="parse-status" class="text-gray-400">尚未解析 · 未解析时在生成阶段自动识别</span>
+          </div>
+        </div>
+
+        <!-- 日程解析结果（解析后显示，可编辑） -->
+        <div id="parse-agenda-card" class="hidden bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+              </div>
+              <div>
+                <h3 class="text-[15px] font-semibold text-gray-800">日程解析结果</h3>
+                <p class="text-xs text-gray-400 mt-0.5">直接修改表格内容；生成时按此顺序与内容排版</p>
+              </div>
+            </div>
+            <button type="button" id="btn-add-agenda-item" class="inline-flex items-center gap-1 rounded-lg border border-medical-200 text-medical-600 hover:bg-medical-50 px-3.5 py-2 text-xs font-medium transition cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              新增环节
+            </button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-[11px] text-gray-400 bg-gray-50/60">
+                  <th class="px-3 py-2 font-medium w-9">#</th>
+                  <th class="px-2 py-2 font-medium w-24">时间段</th>
+                  <th class="px-2 py-2 font-medium w-24">类型</th>
+                  <th class="px-2 py-2 font-medium min-w-[160px]">中文标题</th>
+                  <th class="px-2 py-2 font-medium min-w-[160px]">英文标题</th>
+                  <th class="px-2 py-2 font-medium w-24">演讲者</th>
+                  <th class="px-2 py-2 font-medium w-24">主持人</th>
+                  <th class="px-2 py-2 font-medium w-36">机构</th>
+                  <th class="px-3 py-2 font-medium w-11"></th>
+                </tr>
+              </thead>
+              <tbody id="parse-agenda-rows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 演讲者解析结果（解析后显示，可编辑） -->
+        <div id="parse-speakers-card" class="hidden bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg bg-medical-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"/></svg>
+              </div>
+              <div>
+                <h3 class="text-[15px] font-semibold text-gray-800">演讲者解析结果</h3>
+                <p class="text-xs text-gray-400 mt-0.5">可修改姓名/职称/机构/简介，或替换照片</p>
+              </div>
+            </div>
+            <button type="button" id="btn-add-speaker" class="inline-flex items-center gap-1 rounded-lg border border-medical-200 text-medical-600 hover:bg-medical-50 px-3.5 py-2 text-xs font-medium transition cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              新增演讲者
+            </button>
+          </div>
+          <input type="file" id="input-photo" class="hidden" accept=".jpg,.jpeg,.png,.gif,.bmp">
+          <div id="parse-speakers-grid" class="p-5 grid md:grid-cols-2 gap-4"></div>
+        </div>
+
+        <!-- 背景图预览 -->
+        <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg bg-medical-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 1 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+              </div>
+              <div>
+                <h3 class="text-[15px] font-semibold text-gray-800">PPT模版 / 背景图预览</h3>
+                <p class="text-xs text-gray-400 mt-0.5">已上传的首页 / 内容页背景图 · 点击预览可替换</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div id="preview-wrap-home" class="group relative cursor-pointer">
+              <div id="preview-bg-home" class="aspect-video rounded-xl overflow-hidden border border-gray-200 bg-gradient-to-br from-medical-500 via-medical-600 to-medical-800 flex flex-col items-center justify-center">
+                <svg class="w-12 h-12 text-white/90" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M10 3.5h4a1 1 0 0 1 1 1V9.5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4.5a1 1 0 0 1 1-1Z" clip-rule="evenodd"/></svg>
+                <p class="text-white/85 text-sm mt-2 font-medium">首页背景</p>
+                <p class="text-white/60 text-xs">未上传 · 点击选择图片</p>
+              </div>
+              <div class="absolute top-2 right-2 bg-white/90 rounded-lg px-2 py-1 text-[11px] text-gray-600 shadow-sm">首页背景</div>
+              <div class="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/20 transition flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <span class="bg-white text-gray-700 rounded-lg px-3 py-1.5 text-xs font-medium shadow">替换图片</span>
+              </div>
+            </div>
+            <div id="preview-wrap-content" class="group relative cursor-pointer">
+              <div id="preview-bg-content" class="aspect-video rounded-xl overflow-hidden border border-gray-200 bg-gradient-to-br from-medical-100 via-medical-50 to-white flex flex-col items-center justify-center">
+                <svg class="w-10 h-10 text-medical-300" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 1 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+                <p class="text-medical-400 text-sm mt-2">内容页背景</p>
+                <p class="text-gray-400 text-xs">未上传 · 点击选择图片</p>
+              </div>
+              <div class="absolute top-2 right-2 bg-white/90 rounded-lg px-2 py-1 text-[11px] text-gray-600 shadow-sm">内容页背景</div>
+              <div class="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/20 transition flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <span class="bg-white text-gray-700 rounded-lg px-3 py-1.5 text-xs font-medium shadow">替换图片</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 生成参数 -->
+        <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6">
+          <div class="flex items-center gap-2.5 mb-5">
+            <div class="w-9 h-9 rounded-lg bg-medical-50 flex items-center justify-center">
+              <svg class="w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+            </div>
+            <div>
+              <h3 class="text-[15px] font-semibold text-gray-800">生成参数</h3>
+              <p class="text-xs text-gray-400 mt-0.5">选择屏幕尺寸与语言版本</p>
+            </div>
+          </div>
+
+          <div class="grid sm:grid-cols-2 gap-6">
+            <!-- 尺寸 -->
+            <div>
+              <p class="text-sm font-medium text-gray-700 mb-3">屏幕尺寸</p>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="cursor-pointer">
+                  <input type="radio" name="size" id="radio-size-169" value="16:9" class="sr-only peer/size1" checked>
+                  <div class="rounded-xl border-2 border-gray-200 px-4 py-3.5 hover:border-medical-200 peer-checked/size1:border-medical-500 peer-checked/size1:bg-medical-50/60 peer-checked/size1:shadow-md peer-checked/size1:shadow-medical-100 transition">
+                    <p class="text-sm font-semibold text-gray-600 peer-checked/size1:text-medical-600">16:9 宽屏</p>
+                    <p class="text-xs text-gray-500 mt-1">会议室投影 · 13.33 × 7.5 英寸</p>
+                    <div class="mt-2.5 aspect-video w-20 rounded-sm border border-gray-200 peer-checked/size1:border-medical-300 bg-white shadow-sm"></div>
+                  </div>
+                </label>
+                <label class="cursor-pointer">
+                  <input type="radio" name="size" id="radio-size-ultrawide" value="ultrawide" class="sr-only peer/size2">
+                  <div class="rounded-xl border-2 border-gray-200 px-4 py-3.5 hover:border-medical-200 peer-checked/size2:border-medical-500 peer-checked/size2:bg-medical-50/60 transition">
+                    <p class="text-sm font-semibold text-gray-600">超宽屏 (舞台LED)</p>
+                    <p class="text-xs text-gray-500 mt-1">会议舞台大屏 · 7.87 × 1.57 英寸</p>
+                    <div class="mt-2.5 h-6 w-24 rounded-sm border border-gray-200 bg-white shadow-sm"></div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- 语言 -->
+            <div>
+              <p class="text-sm font-medium text-gray-700 mb-3">语言版本</p>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="cursor-pointer">
+                  <input type="radio" name="lang" id="radio-lang-chinese" value="chinese" class="sr-only peer/lang1" checked>
+                  <div class="rounded-xl border-2 border-gray-200 px-4 py-3.5 hover:border-medical-200 peer-checked/lang1:border-medical-500 peer-checked/lang1:bg-medical-50/60 transition">
+                    <p class="text-sm font-semibold text-gray-600">中文</p>
+                    <p class="text-xs text-gray-500 mt-1">纯中文串场文案</p>
+                    <p class="mt-2 text-medical-500 text-xs">亲爱的各位来宾，欢迎…</p>
+                  </div>
+                </label>
+                <label class="cursor-pointer">
+                  <input type="radio" name="lang" id="radio-lang-bilingual" value="bilingual" class="sr-only peer/lang2">
+                  <div class="rounded-xl border-2 border-gray-200 px-4 py-3.5 hover:border-medical-200 peer-checked/lang2:border-medical-500 peer-checked/lang2:bg-medical-50/60 peer-checked/lang2:shadow-md peer-checked/lang2:shadow-medical-100 transition">
+                    <p class="text-sm font-semibold text-gray-600 peer-checked/lang2:text-medical-600">中英双语</p>
+                    <p class="text-xs text-gray-500 mt-1">双语对照，适合国际会议</p>
+                    <p class="mt-2 text-medical-500 text-xs">Dear guests, welcome to…</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <div class="flex justify-between">
+          <label for="w1" class="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 px-6 py-2.5 text-sm font-medium transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>
+            上一步
+          </label>
+          <label for="w3" id="nav-w2-next" class="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-medical-500 hover:bg-medical-600 text-white px-6 py-2.5 text-sm font-medium shadow-sm shadow-medical-200 transition">
+            下一步：生成与下载
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+          </label>
+        </div>
+      </section>
+
+      <!-- ============ 步骤 3：生成与下载 ============ -->
+      <section class="hidden peer-checked/w3:block space-y-5">
+
+        <!-- 生成概览 -->
+        <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6">
+          <div class="flex items-center gap-2.5 mb-5">
+            <div class="w-9 h-9 rounded-lg bg-medical-50 flex items-center justify-center">
+              <svg class="w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6"/></svg>
+            </div>
+            <h3 class="text-[15px] font-semibold text-gray-800">生成概览</h3>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="rounded-xl bg-medical-50/60 border border-medical-100 px-4 py-3.5">
+              <p id="stat-agenda-num" class="text-2xl font-bold text-medical-600">0</p>
+              <p class="text-xs text-gray-500 mt-1">日程文件</p>
+            </div>
+            <div class="rounded-xl bg-medical-50/60 border border-medical-100 px-4 py-3.5">
+              <p id="stat-speakers-num" class="text-2xl font-bold text-medical-600">0</p>
+              <p class="text-xs text-gray-500 mt-1">演讲者资料</p>
+            </div>
+            <div class="rounded-xl bg-emerald-50/60 border border-emerald-100 px-4 py-3.5">
+              <p id="stat-bg-num" class="text-2xl font-bold text-emerald-600">—</p>
+              <p class="text-xs text-gray-500 mt-1">模版/背景图</p>
+            </div>
+            <div class="rounded-xl bg-amber-50/60 border border-amber-100 px-4 py-3.5">
+              <p id="stat-size-num" class="text-2xl font-bold text-amber-600">16:9</p>
+              <p class="text-xs text-gray-500 mt-1">屏幕尺寸</p>
+            </div>
+          </div>
+
+          <!-- 参数摘要 -->
+          <div class="flex flex-wrap items-center gap-2 mt-4">
+            <span class="text-xs text-gray-400">生成参数：</span>
+            <span id="summary-size" class="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-3 py-1 text-xs font-medium">16:9 宽屏</span>
+            <span id="summary-lang" class="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-3 py-1 text-xs font-medium">中文</span>
+            <span id="summary-files" class="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-3 py-1 text-xs font-medium">日程 0 份 · 演讲者 0 份</span>
+          </div>
+        </div>
+
+        <!-- 生成按钮 + 进度 -->
+        <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6">
+          <div class="flex flex-col items-center py-2">
+            <button type="button" id="btn-generate" class="inline-flex items-center gap-2.5 rounded-2xl bg-medical-500 hover:bg-medical-600 text-white text-base font-semibold px-10 py-4 shadow-lg shadow-medical-200 transition cursor-pointer">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+              <span id="gen-label">一键生成 PPT</span>
+            </button>
+            <p id="gen-note" class="text-xs text-gray-400 mt-3">生成过程中请勿关闭页面 · 预计耗时 1-3 分钟</p>
+
+            <!-- 进度条（生成中显示） -->
+            <div id="prog-wrap" class="w-full max-w-xl mt-6 hidden">
+              <div class="flex items-center justify-between text-xs mb-2">
+                <span class="inline-flex items-center gap-1.5 text-medical-600 font-medium">
+                  <svg class="w-3.5 h-3.5 animate-spin shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                  <span id="prog-status-text">正在准备任务…</span>
+                </span>
+                <span id="prog-percent" class="text-medical-600 font-bold">0%</span>
+              </div>
+              <div class="h-2.5 bg-medical-100 rounded-full overflow-hidden">
+                <div id="prog-bar" class="h-full bg-gradient-to-r from-medical-400 to-medical-500 rounded-full progress-striped" style="width:0%"></div>
+              </div>
+              <div class="flex justify-between mt-2 text-[11px] text-gray-400">
+                <span id="prog-stage-1">读取上传文件</span>
+                <span id="prog-stage-2">提取日程与演讲者</span>
+                <span id="prog-stage-3">排版生成PPT</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 生成失败提示 -->
+        <div id="error-banner" class="hidden bg-white rounded-2xl border border-red-200 shadow-sm p-6">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 shrink-0 rounded-lg bg-red-50 flex items-center justify-center">
+              <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 class="text-[15px] font-semibold text-red-600">生成失败</h3>
+              <p id="error-text" class="text-xs text-gray-500 mt-1.5 break-all leading-relaxed"></p>
+            </div>
+            <button type="button" id="btn-retry" class="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-medical-500 hover:bg-medical-600 text-white px-4 py-2 text-xs font-medium transition cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+              重新生成
+            </button>
+          </div>
+        </div>
+
+        <!-- 结果下载区 -->
+        <div id="result-card" class="hidden bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+              </div>
+              <h3 class="text-[15px] font-semibold text-gray-800">生成结果</h3>
+            </div>
+            <span id="result-badge" class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 bg-emerald-50 rounded-full px-2.5 py-1">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>生成完成
+            </span>
+          </div>
+
+          <div class="px-6 py-5">
+            <div class="flex items-center gap-4 rounded-xl border border-emerald-200 bg-emerald-50/50 px-5 py-4">
+              <div class="w-12 h-12 shrink-0 rounded-xl bg-white border border-emerald-200 flex items-center justify-center shadow-sm">
+                <svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6"/></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p id="result-filename" class="text-sm font-semibold text-gray-800 truncate">串场PPT.pptx</p>
+                <p id="result-meta" class="text-xs text-gray-500 mt-1">—</p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button type="button" id="btn-download" class="inline-flex items-center gap-2 rounded-xl bg-medical-500 hover:bg-medical-600 text-white px-5 py-2.5 text-sm font-medium shadow-sm shadow-medical-200 transition cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                  下载 PPTX
+                </button>
+                <button type="button" id="btn-regenerate" class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 px-4 py-2.5 text-sm font-medium transition cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                  重新生成
+                </button>
+              </div>
+            </div>
+
+            <p class="flex items-center gap-1.5 text-xs text-gray-400 mt-4">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>
+              本次生成记录已保存至左侧「历史记录」（本机浏览器），可随时重新下载。
+            </p>
+          </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <div class="flex justify-between">
+          <label for="w2" class="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 px-6 py-2.5 text-sm font-medium transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>
+            返回修改参数
+          </label>
+          <label for="w1" id="nav-w3-new" class="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-medical-500 hover:bg-medical-600 text-white px-6 py-2.5 text-sm font-medium shadow-sm shadow-medical-200 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            新建任务
+          </label>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ======================= 页脚 ======================= -->
+<footer class="mt-10 border-t border-gray-200 bg-white">
+  <div class="max-w-[1280px] mx-auto px-6 py-4 flex items-center justify-between">
+    <p class="text-xs text-gray-400">会议串场PPT生成器 · Web 版 v0.2 · 已接入 FastAPI 后端（上传 → 生成 → 自动下载）</p>
+    <p class="text-xs text-gray-400">主色 #1A7B9E 医典蓝 · 三步工作流：上传 → 配置 → 生成</p>
+  </div>
+</footer>
+
+<!-- ======================= Toast 容器 ======================= -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 w-80 max-w-[90vw]"></div>
+
+<!-- ======================= 应用逻辑（Fetch API 对接后端） ======================= -->
+<script>
+(function () {
+  'use strict';
+
+  // ---------------- 配置与本地持久化 ----------------
+  var LS = {
+    apiBase: 'pptmaker_api_base',
+    apiKey: 'pptmaker_api_key',
+    ocrKey: 'pptmaker_ocr_key',
+    history: 'pptmaker_history',
+  };
+  var DEFAULT_API_BASE = location.protocol === 'file:'
+    ? 'http://127.0.0.1:8000'
+    : location.origin;
+  var POLL_INTERVAL_MS = 2000; // 状态轮询间隔（毫秒）
+
+  function apiBase() {
+    // 通过后端访问时固定用同源地址，避免 localhost/127.0.0.1 混用导致会话丢失；
+    // 后端地址设置仅对 file:// 打开方式生效
+    if (location.protocol !== 'file:') return location.origin;
+    return (localStorage.getItem(LS.apiBase) || DEFAULT_API_BASE).replace(/\/+$/, '');
+  }
+  var TOKEN_KEY = 'pptmaker_session_token';
+  function sessionToken() {
+    try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+  }
+  // 统一请求：携带会话 Cookie + 会话 Token 头（跨主机/file:// 下 Cookie 可能不送达）
+  function authFetch(url, options) {
+    var opt = Object.assign({}, options || {}, { credentials: 'include' });
+    var tk = sessionToken();
+    if (tk) {
+      opt.headers = Object.assign({}, opt.headers || {}, { 'X-Session-Token': tk });
+    }
+    return fetch(url, opt);
+  }
+
+  // ---------------- 全局状态 ----------------
+  var state = {
+    agenda: null,      // {file_id, filename, size, file}
+    speakers: [],      // [{file_id, filename, size, file}]
+    bgHome: null,      // {file_id, filename, size, file}
+    bgContent: null,   // {file_id, filename, size, file}
+    taskId: null,
+    pollTimer: null,
+    generating: false,
+    uploading: 0,      // 正在上传的文件数
+    accountKeyConfigured: false, // 账号已在服务端配置 DeepSeek Key
+    parsed: null,      // {agenda:[], speakers:[]} 解析/编辑结果；null=未解析
+    parsing: false,    // 解析请求进行中
+  };
+  var parseSeq = 0;       // 解析请求序号：文件变更后使在途解析结果作废
+  var photoTargetIdx = null; // 「更换照片」当前目标演讲者下标
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem(LS.history) || '[]'); } catch (e) { history = []; }
+
+  function $(id) { return document.getElementById(id); }
+
+  // ---------------- 工具 ----------------
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fmtSize(n) {
+    if (n == null || isNaN(n)) return '';
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1048576).toFixed(1) + ' MB';
+  }
+  var TOAST_STYLES = {
+    success: { icon: '✓', cls: 'bg-emerald-500' },
+    error: { icon: '✕', cls: 'bg-red-500' },
+    info: { icon: 'ℹ', cls: 'bg-medical-500' },
+  };
+  function toast(type, text, ms) {
+    var t = TOAST_STYLES[type] || TOAST_STYLES.info;
+    var el = document.createElement('div');
+    el.className = 'flex items-start gap-2 rounded-xl text-white text-sm shadow-lg px-4 py-3 ' + t.cls;
+    el.innerHTML = '<span class="font-bold leading-5">' + t.icon + '</span><span class="flex-1 leading-5 break-all">' + esc(text) + '</span>';
+    $('toast-container').appendChild(el);
+    setTimeout(function () {
+      el.style.transition = 'opacity .3s';
+      el.style.opacity = '0';
+      setTimeout(function () { el.remove(); }, 320);
+    }, ms || 4500);
+  }
+
+  // ---------------- API 封装（统一错误处理，失败抛 Error(detail)） ----------------
+  async function api(path, options) {
+    var res;
+    try {
+      res = await authFetch(apiBase() + path, options);
+    } catch (e) {
+      throw new Error('无法连接后端服务（' + apiBase() + '）。请先启动：python -m uvicorn main_web:app --port 8000，或到「账户设置」修改后端地址');
+    }
+    if (!res.ok) {
+      var detail = '';
+      try { var j = await res.json(); detail = j.detail || ''; } catch (e) {}
+      throw new Error(detail || ('请求失败 HTTP ' + res.status));
+    }
+    try { return await res.json(); } catch (e) { return {}; }
+  }
+
+  // ---------------- 后端连通性检测 ----------------
+  async function checkBackend() {
+    var badge = $('backend-status');
+    badge.textContent = '检测后端…';
+    badge.className = 'inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1';
+    try {
+      // 任意 HTTP 响应（含 404）都说明服务可达
+      await fetch(apiBase() + '/api/status/00000000000000000000000000000000');
+      badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>后端已连接';
+      badge.className = 'inline-flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1';
+    } catch (e) {
+      badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>后端未连接';
+      badge.className = 'inline-flex items-center gap-1 text-[11px] text-red-500 bg-red-50 border border-red-200 rounded-full px-2.5 py-1';
+      toast('error', '无法连接后端 ' + apiBase() + '，请先启动：python -m uvicorn main_web:app --port 8000，或到「账户设置」修改后端地址', 8000);
+    }
+  }
+
+  // ---------------- 文件上传 ----------------
+  var ACCEPT = {
+    speaker: /\.(docx|doc|pptx|ppt|pdf)$/i,
+    agenda: /\.(jpg|jpeg|png|pptx|ppt|docx|doc|xlsx)$/i,
+    'bg-home': /\.(jpg|jpeg|png)$/i,
+    'bg-content': /\.(jpg|jpeg|png)$/i,
+    'bg-template': /\.pptx$/i,
+  };
+
+  async function uploadFiles(files, kind) {
+    var list = Array.prototype.filter.call(files, function (f) { return ACCEPT[kind].test(f.name); });
+    if (!list.length) {
+      toast('error', '不支持的文件格式，支持：' +
+        (kind === 'speaker' ? '.docx .doc .pptx .ppt .pdf'
+          : kind === 'agenda' ? '.jpg .jpeg .png .pptx .ppt .docx .doc .xlsx'
+          : kind === 'bg-template' ? '.pptx'
+          : '.jpg .jpeg .png（PPT 模版请拖入下方模版上传区）'));
+      return;
+    }
+    // PPT 模版走提取接口（同时填充首页/内容页两个槽位）
+    if (kind === 'bg-template') {
+      for (var i = 0; i < list.length; i++) await uploadBgTemplate(list[i]);
+      return;
+    }
+    var fd = new FormData();
+    list.forEach(function (f) { fd.append('files', f, f.name); });
+
+    state.uploading += list.length;
+    updateGenerateBtn();
+    try {
+      var data = await api('/api/upload', { method: 'POST', body: fd });
+      var recs = (data.files || []).map(function (r, i) {
+        return { file_id: r.file_id, filename: r.filename, size: r.size, file: list[i] };
+      });
+      if (kind === 'agenda' && recs.length) {
+        state.agenda = recs[recs.length - 1];
+        toast('success', '日程已上传：' + state.agenda.filename);
+        clearParsed(); // 文件已变更，解析结果作废
+      } else if (kind === 'speaker') {
+        state.speakers = state.speakers.concat(recs);
+        toast('success', '演讲者资料已上传 ' + recs.length + ' 份');
+        clearParsed(); // 文件已变更，解析结果作废
+      } else if (kind === 'bg-home' && recs.length) {
+        state.bgHome = recs[0];
+        toast('success', '首页背景已上传');
+      } else if (kind === 'bg-content' && recs.length) {
+        state.bgContent = recs[0];
+        toast('success', '内容页背景已上传');
+      }
+    } catch (e) {
+      toast('error', '上传失败：' + e.message, 6500);
+    } finally {
+      state.uploading -= list.length;
+      renderAll();
+    }
+  }
+
+  // 上传 .pptx 模版 → 后端提取首页/内容页背景，两个槽位一起填充
+  async function uploadBgTemplate(file) {
+    var fd = new FormData();
+    fd.append('file', file, file.name);
+    state.uploading += 1;
+    updateGenerateBtn();
+    toast('info', '正在从模版提取背景图…', 8000);
+    try {
+      var data = await api('/api/template/background', { method: 'POST', body: fd });
+      state.bgHome = await b64ToRec(data.home);
+      state.bgContent = await b64ToRec(data.content);
+      toast('success', '已从模版提取首页/内容页背景');
+    } catch (e) {
+      toast('error', '模版提取失败：' + e.message, 6500);
+    } finally {
+      state.uploading -= 1;
+      renderAll();
+    }
+  }
+
+  // 后端返回的 preview dataURI → 与普通上传一致的记录结构 {file_id, filename, size, file}
+  async function b64ToRec(r) {
+    var res = await fetch(r.preview);
+    var blob = await res.blob();
+    return { file_id: r.file_id, filename: r.filename, size: r.size, file: new File([blob], r.filename, { type: blob.type }) };
+  }
+
+  // ---------------- 渲染：上传区文件 chips ----------------
+  var FILE_ICON = '<svg class="w-3.5 h-3.5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>';
+  var X_ICON = '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>';
+  var PLUS_ICON = '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>';
+
+  function chipHtml(r) {
+    return '<span class="inline-flex items-center gap-1.5 bg-white border border-medical-200 rounded-lg pl-2.5 pr-1.5 py-1 text-xs text-gray-700 shadow-sm">' +
+      FILE_ICON + '<span class="max-w-[200px] truncate">' + esc(r.filename) + '</span>' +
+      '<span class="text-[11px] text-gray-400">' + fmtSize(r.size) + '</span>' +
+      '<button type="button" data-remove="' + esc(r.file_id) + '" title="移除" class="w-5 h-5 rounded-md bg-gray-100 hover:bg-red-50 hover:text-red-500 text-gray-400 flex items-center justify-center cursor-pointer">' + X_ICON + '</button>' +
+      '</span>';
+  }
+
+  function renderChips() {
+    $('chips-speaker').innerHTML = state.speakers.map(chipHtml).join('') +
+      (state.speakers.length
+        ? '<button type="button" id="chip-add-speaker" class="inline-flex items-center gap-1 bg-medical-100 text-medical-600 rounded-lg px-2 py-1 text-xs font-medium cursor-pointer hover:bg-medical-200 transition">' + PLUS_ICON + '继续添加</button>'
+        : '');
+    $('chip-agenda').innerHTML = state.agenda ? chipHtml(state.agenda) : '';
+    $('chip-bg-home').innerHTML = state.bgHome ? chipHtml(state.bgHome) : '';
+    $('chip-bg-content').innerHTML = state.bgContent ? chipHtml(state.bgContent) : '';
+    var addBtn = $('chip-add-speaker');
+    if (addBtn) {
+      addBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        $('input-speaker').value = '';
+        $('input-speaker').click();
+      });
+    }
+  }
+
+  // ---------------- 渲染：步骤2 背景图预览 ----------------
+  var HOME_PLACEHOLDER = '<svg class="w-12 h-12 text-white/90" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M10 3.5h4a1 1 0 0 1 1 1V9.5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4.5a1 1 0 0 1 1-1Z" clip-rule="evenodd"/></svg>' +
+    '<p class="text-white/85 text-sm mt-2 font-medium">首页背景</p><p class="text-white/60 text-xs">未上传 · 点击选择图片或 .pptx 模版</p>';
+  var CONTENT_PLACEHOLDER = '<svg class="w-10 h-10 text-medical-300" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 1 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>' +
+    '<p class="text-medical-400 text-sm mt-2">内容页背景</p><p class="text-gray-400 text-xs">未上传 · 点击选择图片或 .pptx 模版</p>';
+
+  function previewHtml(rec, placeholder) {
+    if (!rec) return placeholder;
+    try {
+      return '<img class="w-full h-full object-cover" src="' + URL.createObjectURL(rec.file) + '" alt="' + esc(rec.filename) + '">';
+    } catch (e) { return placeholder; }
+  }
+  function renderPreviews() {
+    $('preview-bg-home').innerHTML = previewHtml(state.bgHome, HOME_PLACEHOLDER);
+    $('preview-bg-content').innerHTML = previewHtml(state.bgContent, CONTENT_PLACEHOLDER);
+  }
+
+  // ---------------- 渲染：步骤2 资料确认 ----------------
+  function renderConfirm() {
+    var a = $('confirm-agenda');
+    a.textContent = state.agenda ? state.agenda.filename + ' · ' + fmtSize(state.agenda.size) : '未上传';
+    a.className = 'text-xs mt-0.5 truncate ' + (state.agenda ? 'text-gray-600' : 'text-red-400');
+    var s = $('confirm-speakers');
+    s.textContent = state.speakers.length
+      ? state.speakers.length + ' 份：' + state.speakers.map(function (x) { return x.filename; }).join('、')
+      : '未上传（可选）';
+    s.className = 'text-xs mt-0.5 truncate ' + (state.speakers.length ? 'text-gray-600' : 'text-gray-400');
+    var bgTxt = [];
+    if (state.bgHome) bgTxt.push('首页：' + state.bgHome.filename);
+    if (state.bgContent) bgTxt.push('内容页：' + state.bgContent.filename);
+    var b = $('confirm-bg');
+    b.textContent = bgTxt.length ? bgTxt.join(' · ') : '未上传（可选）';
+    b.className = 'text-xs mt-0.5 truncate ' + (bgTxt.length ? 'text-gray-600' : 'text-gray-400');
+  }
+
+  // ---------------- 渲染：步骤3 概览统计 ----------------
+  function getParams() {
+    var sizeEl = document.querySelector('input[name="size"]:checked');
+    var langEl = document.querySelector('input[name="lang"]:checked');
+    return {
+      slideSize: (sizeEl && sizeEl.value) || '16:9',
+      lang: (langEl && langEl.value) || 'chinese',
+    };
+  }
+  function renderStats() {
+    var p = getParams();
+    var usingParsed = !!state.parsed;
+    $('stat-agenda-num').textContent = usingParsed ? state.parsed.agenda.length : (state.agenda ? '1' : '0');
+    $('stat-speakers-num').textContent = usingParsed ? state.parsed.speakers.length : state.speakers.length;
+    var bgCount = (state.bgHome ? 1 : 0) + (state.bgContent ? 1 : 0);
+    $('stat-bg-num').textContent = bgCount ? '✓' : '—';
+    $('stat-size-num').textContent = p.slideSize;
+    $('summary-size').textContent = p.slideSize === 'ultrawide' ? '超宽屏（舞台LED）' : '16:9 宽屏';
+    $('summary-lang').textContent = p.lang === 'chinese' ? '中文' : '中英双语';
+    $('summary-files').textContent = usingParsed
+      ? '日程 ' + state.parsed.agenda.length + ' 个环节 · 演讲者 ' + state.parsed.speakers.length + ' 位（编辑后数据）'
+      : '日程 ' + (state.agenda ? 1 : 0) + ' 份 · 演讲者 ' + state.speakers.length + ' 份';
+  }
+
+  // ---------------- 资料解析：请求 / 状态 / 可编辑结果渲染 ----------------
+  var ITEM_TYPES = [
+    ['section', '章节'], ['opening', '开幕'], ['speech', '演讲'],
+    ['panel', '讨论'], ['closing', '闭幕'],
+  ];
+  var EDIT_CLS = 'w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-medical-200';
+
+  function itemTypeOptions(sel) {
+    return ITEM_TYPES.map(function (t) {
+      return '<option value="' + t[0] + '"' + (t[0] === sel ? ' selected' : '') + '>' + t[1] + '</option>';
+    }).join('');
+  }
+
+  async function parseFiles() {
+    if (state.parsing) return;
+    if (state.uploading > 0) { toast('error', '文件正在上传，请稍候…'); return; }
+    if (!state.agenda) { toast('error', '请先上传会议日程文件'); return; }
+    var apiKey = (localStorage.getItem(LS.apiKey) || '').trim();
+    if (!apiKey && !state.accountKeyConfigured) {
+      toast('error', '请先填写 DeepSeek API Key：点击右上角「账户设置」', 7000);
+      return;
+    }
+    var seq = parseSeq;
+    state.parsing = true;
+    state.parsed = null;
+    renderParsed();
+    toast('info', '正在解析日程与演讲者资料…（可能需要 1-3 分钟，请勿关闭页面）', 8000);
+    try {
+      var data = await api('/api/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agenda_file_id: state.agenda.file_id,
+          speaker_file_ids: state.speakers.map(function (s) { return s.file_id; }),
+          api_key: apiKey,
+          ocr_api_key: (localStorage.getItem(LS.ocrKey) || '').trim(),
+        }),
+      });
+      if (seq !== parseSeq) return; // 文件已变更，本次结果作废
+      state.parsed = {
+        agenda: (data.agenda || []).map(function (it) {
+          return {
+            order: it.order, time_slot: it.time_slot || '',
+            session_title_cn: it.session_title_cn || '',
+            session_title_en: it.session_title_en || '',
+            speaker_name: it.speaker_name || '', host: it.host || '',
+            institution: it.institution || '', item_type: it.item_type || 'speech',
+          };
+        }),
+        speakers: (data.speakers || []).map(function (s) {
+          return {
+            name: s.name || '', title: s.title || '教授',
+            institution: s.institution || '', bio: s.bio || '',
+            bio_en: s.bio_en || '', photo: s.photo || null,
+          };
+        }),
+      };
+      toast('success', '解析完成：' + state.parsed.agenda.length + ' 个环节 · ' + state.parsed.speakers.length + ' 位演讲者');
+    } catch (e) {
+      if (seq === parseSeq) toast('error', '解析失败：' + e.message, 9000);
+    } finally {
+      if (seq === parseSeq) state.parsing = false;
+      renderParsed();
+      renderStats();
+    }
+  }
+
+  function clearParsed() {
+    if (!state.parsed && !state.parsing) return;
+    parseSeq += 1; // 作废在途解析请求的结果
+    state.parsed = null;
+    state.parsing = false;
+    renderParsed();
+    renderStats();
+  }
+
+  // 状态行与按钮（renderAll 可安全调用，不触碰编辑内容）
+  function renderParseStatus() {
+    var btn = $('btn-parse');
+    var status = $('parse-status');
+    var dot = $('parse-status-dot');
+    if (state.parsing) {
+      btn.disabled = true;
+      $('parse-btn-label').textContent = '解析中…';
+      dot.className = 'w-2 h-2 rounded-full bg-amber-400 shrink-0 animate-pulse';
+      status.textContent = '正在解析…（可能需要 1-3 分钟，请勿关闭页面）';
+      status.className = 'text-amber-600';
+      return;
+    }
+    btn.disabled = false;
+    $('parse-btn-label').textContent = state.parsed ? '重新解析' : '解析资料';
+    if (state.parsed) {
+      dot.className = 'w-2 h-2 rounded-full bg-emerald-500 shrink-0';
+      status.textContent = '已解析：' + state.parsed.agenda.length + ' 个环节 · ' + state.parsed.speakers.length + ' 位演讲者（生成将使用编辑后的结果）';
+      status.className = 'text-emerald-600';
+    } else {
+      dot.className = 'w-2 h-2 rounded-full bg-gray-300 shrink-0';
+      status.textContent = '尚未解析 · 未解析时在生成阶段自动识别';
+      status.className = 'text-gray-400';
+    }
+  }
+
+  // 卡片可见性（renderAll 可安全调用）
+  function toggleParseCards() {
+    var show = !!state.parsed;
+    $('parse-agenda-card').classList.toggle('hidden', !show);
+    $('parse-speakers-card').classList.toggle('hidden', !show);
+  }
+
+  // 解析状态 + 编辑内容整体渲染（仅在解析完成/清空时调用）
+  function renderParsed() {
+    renderParseStatus();
+    toggleParseCards();
+    if (state.parsed) {
+      renderAgendaRows();
+      renderSpeakerCards();
+    } else {
+      $('parse-agenda-rows').innerHTML = '';
+      $('parse-speakers-grid').innerHTML = '';
+    }
+  }
+
+  function agendaRowHtml(it, idx) {
+    return '<tr class="border-t border-gray-100 align-top">' +
+      '<td class="px-3 py-2 text-gray-400 text-xs">' + (idx + 1) + '</td>' +
+      '<td class="px-2 py-2"><input data-ai="' + idx + '" data-field="time_slot" value="' + esc(it.time_slot) + '" placeholder="如 08:30-09:00" class="' + EDIT_CLS + '"></td>' +
+      '<td class="px-2 py-2"><select data-ai="' + idx + '" data-field="item_type" class="' + EDIT_CLS + '">' + itemTypeOptions(it.item_type) + '</select></td>' +
+      '<td class="px-2 py-2"><input data-ai="' + idx + '" data-field="session_title_cn" value="' + esc(it.session_title_cn) + '" class="' + EDIT_CLS + '"></td>' +
+      '<td class="px-2 py-2"><input data-ai="' + idx + '" data-field="session_title_en" value="' + esc(it.session_title_en) + '" class="' + EDIT_CLS + '"></td>' +
+      '<td class="px-2 py-2"><input data-ai="' + idx + '" data-field="speaker_name" value="' + esc(it.speaker_name) + '" class="' + EDIT_CLS + '"></td>' +
+      '<td class="px-2 py-2"><input data-ai="' + idx + '" data-field="host" value="' + esc(it.host) + '" class="' + EDIT_CLS + '"></td>' +
+      '<td class="px-2 py-2"><input data-ai="' + idx + '" data-field="institution" value="' + esc(it.institution) + '" class="' + EDIT_CLS + '"></td>' +
+      '<td class="px-3 py-2 text-center"><button type="button" data-del-agenda="' + idx + '" title="删除该环节" class="w-6 h-6 rounded-md bg-gray-100 hover:bg-red-50 hover:text-red-500 text-gray-400 flex items-center justify-center cursor-pointer">' + X_ICON + '</button></td>' +
+      '</tr>';
+  }
+
+  function renderAgendaRows() {
+    $('parse-agenda-rows').innerHTML = state.parsed.agenda.map(agendaRowHtml).join('');
+  }
+
+  function speakerPhotoHtml(sp, idx) {
+    var src = sp.photo && (sp.photo.preview || (sp.photo.file ? URL.createObjectURL(sp.photo.file) : ''));
+    if (src) {
+      return '<img id="sp-photo-' + idx + '" src="' + src + '" class="w-20 h-20 rounded-xl object-cover border border-gray-200" alt="照片">';
+    }
+    return '<div id="sp-photo-' + idx + '" class="w-20 h-20 rounded-xl border border-dashed border-gray-200 bg-gray-50 flex items-center justify-center text-[11px] text-gray-400">无照片</div>';
+  }
+
+  function speakerCardHtml(sp, idx) {
+    return '<div class="rounded-xl border border-gray-200 p-4">' +
+      '<div class="flex gap-3">' +
+        speakerPhotoHtml(sp, idx) +
+        '<div class="flex-1 min-w-0 space-y-2">' +
+          '<div class="flex gap-2">' +
+            '<input data-sp="' + idx + '" data-field="name" value="' + esc(sp.name) + '" placeholder="姓名" class="' + EDIT_CLS + ' flex-1">' +
+            '<input data-sp="' + idx + '" data-field="title" value="' + esc(sp.title) + '" placeholder="职称" class="' + EDIT_CLS + ' w-20">' +
+          '</div>' +
+          '<input data-sp="' + idx + '" data-field="institution" value="' + esc(sp.institution) + '" placeholder="机构" class="' + EDIT_CLS + ' w-full">' +
+        '</div>' +
+      '</div>' +
+      '<div class="mt-3 space-y-2">' +
+        '<textarea data-sp="' + idx + '" data-field="bio" rows="5" placeholder="中文简介（每行一条）" class="' + EDIT_CLS + ' resize-y">' + esc(sp.bio) + '</textarea>' +
+        '<textarea data-sp="' + idx + '" data-field="bio_en" rows="3" placeholder="英文简介（可选）" class="' + EDIT_CLS + ' resize-y">' + esc(sp.bio_en) + '</textarea>' +
+      '</div>' +
+      '<div class="mt-3 flex items-center justify-between">' +
+        '<button type="button" data-photo-replace="' + idx + '" class="inline-flex items-center gap-1 text-xs text-medical-500 hover:text-medical-700 font-medium cursor-pointer">' + FILE_ICON + '更换照片</button>' +
+        '<button type="button" data-del-speaker="' + idx + '" class="text-xs text-red-400 hover:text-red-500 font-medium cursor-pointer">删除</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderSpeakerCards() {
+    $('parse-speakers-grid').innerHTML = state.parsed.speakers.map(speakerCardHtml).join('');
+  }
+
+  function addAgendaItem() {
+    if (!state.parsed) return;
+    var maxOrder = 0;
+    state.parsed.agenda.forEach(function (it) {
+      maxOrder = Math.max(maxOrder, parseInt(it.order, 10) || 0);
+    });
+    state.parsed.agenda.push({
+      order: maxOrder + 1, time_slot: '', session_title_cn: '',
+      session_title_en: '', speaker_name: '', host: '', institution: '',
+      item_type: 'speech',
+    });
+    renderAgendaRows();
+    renderParseStatus();
+    renderStats();
+  }
+
+  function addSpeaker() {
+    if (!state.parsed) return;
+    state.parsed.speakers.push({
+      name: '', title: '教授', institution: '', bio: '', bio_en: '', photo: null,
+    });
+    renderSpeakerCards();
+    renderParseStatus();
+    renderStats();
+  }
+
+  // 替换照片：走 /api/upload 得 file_id，仅更新该演讲者的照片 DOM（不重渲染卡片）
+  async function uploadPhotoFor(file, idx) {
+    var fd = new FormData();
+    fd.append('files', file, file.name);
+    state.uploading += 1;
+    updateGenerateBtn();
+    toast('info', '正在上传照片…', 5000);
+    try {
+      var data = await api('/api/upload', { method: 'POST', body: fd });
+      var r = (data.files || [])[0];
+      var sp = state.parsed.speakers[idx];
+      var url = URL.createObjectURL(file);
+      sp.photo = { file_id: r.file_id, preview: url };
+      var box = $('sp-photo-' + idx);
+      if (box) {
+        box.outerHTML = '<img id="sp-photo-' + idx + '" src="' + url + '" class="w-20 h-20 rounded-xl object-cover border border-gray-200" alt="照片">';
+      }
+      toast('success', '照片已替换（' + (sp.name || '演讲者') + '）');
+    } catch (e) {
+      toast('error', '照片上传失败：' + e.message, 6500);
+    } finally {
+      state.uploading -= 1;
+      updateGenerateBtn();
+    }
+  }
+
+  // ---------------- 渲染：左侧历史记录（localStorage） ----------------
+  function saveHistory(entry) {
+    history.unshift(entry);
+    history = history.slice(0, 20);
+    try { localStorage.setItem(LS.history, JSON.stringify(history)); } catch (e) {}
+    renderHistory();
+  }
+  function renderHistory() {
+    var kw = ($('history-search').value || '').trim().toLowerCase();
+    var list = history.filter(function (h) { return !kw || (h.name || '').toLowerCase().indexOf(kw) >= 0; });
+    $('history-count').textContent = history.length + ' 条';
+    var box = $('history-list');
+    if (!list.length) {
+      box.innerHTML = history.length
+        ? '<div class="px-4 py-10 text-center text-xs text-gray-400">没有匹配的记录</div>'
+        : '<div class="px-4 py-10 text-center text-xs text-gray-400">暂无历史记录<br><span class="text-gray-300">完成一次生成后自动记录</span></div>';
+      return;
+    }
+    box.innerHTML = list.map(function (h) {
+      var statusHtml = h.status === 'done'
+        ? '<span class="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>完成</span>'
+        : '<span class="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-red-500 bg-red-50 rounded-full px-2 py-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>失败</span>';
+      var actions = h.status === 'done'
+        ? '<span class="inline-flex items-center gap-1 text-medical-600 hover:text-medical-700 font-medium cursor-pointer" data-download="' + esc(h.taskId) + '"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>下载</span>'
+        : '';
+      return '<div class="px-4 py-3.5 border-l-[3px] border-transparent hover:bg-medical-50/40 transition">' +
+        '<div class="flex items-start justify-between gap-2">' +
+        '<p class="text-[13px] font-medium text-gray-700 leading-snug truncate">' + esc(h.name || '未命名任务') + '</p>' + statusHtml +
+        '</div>' +
+        '<p class="text-[11px] text-gray-400 mt-1">' + esc(h.time || '') + '</p>' +
+        '<div class="flex items-center gap-3 mt-2 text-[11px]">' + actions +
+        '<span class="inline-flex items-center gap-1 text-red-400 hover:text-red-500 cursor-pointer" data-history-del="' + esc(h.taskId) + '">删除</span></div>' +
+        '</div>';
+    }).join('');
+  }
+
+  // ---------------- 生成：提交 → 轮询 → 自动下载 ----------------
+  function updateGenerateBtn() {
+    var b = $('btn-generate');
+    b.disabled = state.generating || state.uploading > 0;
+    b.classList.toggle('opacity-50', b.disabled);
+    b.classList.toggle('cursor-not-allowed', b.disabled);
+    $('gen-label').textContent = state.generating ? '生成中…' : '一键生成 PPT';
+    $('gen-note').textContent = state.uploading > 0
+      ? '有文件正在上传，请稍候…'
+      : '生成过程中请勿关闭页面 · 预计耗时 1-3 分钟';
+  }
+
+  function setStep(n) {
+    var el = $('w' + n);
+    if (el) el.checked = true;
+    renderStats();
+  }
+
+  async function startGenerate() {
+    if (state.generating) return;
+    if (state.uploading > 0) { toast('info', '文件正在上传，请稍候…'); return; }
+    if (!state.agenda) { toast('error', '请先上传会议日程文件'); setStep(1); return; }
+    var apiKey = (localStorage.getItem(LS.apiKey) || '').trim();
+    var usingParsed = !!state.parsed;
+    // 账号已配置 Key 时（服务端按账号读取），本机未填也放行；
+    // 使用编辑后的数据生成时无需 Key（跳过 AI 解析）
+    if (!usingParsed && !apiKey && !state.accountKeyConfigured) {
+      toast('error', '请先填写 DeepSeek API Key：点击右上角「账户设置」', 7000);
+      setStep(1);
+      return;
+    }
+
+    var p = getParams();
+    var body = {
+      agenda_file_id: state.agenda.file_id,
+      speaker_file_ids: state.speakers.map(function (s) { return s.file_id; }),
+      api_key: apiKey,
+      ocr_api_key: (localStorage.getItem(LS.ocrKey) || '').trim(),
+      home_bg_file_id: state.bgHome ? state.bgHome.file_id : null,
+      content_bg_file_id: state.bgContent ? state.bgContent.file_id : null,
+      slide_size: p.slideSize,
+      lang: p.lang,
+    };
+    if (usingParsed) {
+      body.agenda_items = state.parsed.agenda;
+      body.speakers = state.parsed.speakers.map(function (s) {
+        return {
+          name: s.name, title: s.title, institution: s.institution,
+          bio: s.bio, bio_en: s.bio_en,
+          photo_file_id: s.photo ? s.photo.file_id : '',
+        };
+      });
+    }
+
+    state.generating = true;
+    hideResult();
+    hideError();
+    setStep(3);
+    setProgress(0, '正在创建生成任务…');
+    showProgress();
+    updateGenerateBtn();
+    try {
+      var data = await api('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      state.taskId = data.task_id;
+      toast('success', '任务已提交：' + state.taskId.slice(0, 8) + '，请等待生成完成');
+      pollStatus();
+    } catch (e) {
+      toast('error', '创建任务失败：' + e.message, 7000);
+      state.generating = false;
+      hideProgress();
+      updateGenerateBtn();
+    }
+  }
+
+  function pollStatus() {
+    if (!state.taskId) return;
+    clearTimeout(state.pollTimer);
+    api('/api/status/' + state.taskId).then(function (t) {
+      handleStatus(t);
+    }).catch(function (e) {
+      // 网络抖动不中断任务，稍后继续轮询
+      toast('error', '状态查询失败：' + e.message + '（10 秒后重试）', 6000);
+      state.pollTimer = setTimeout(pollStatus, 10000);
+    });
+  }
+
+  function handleStatus(t) {
+    if (t.task_status === 'done') { finishSuccess(t); return; }
+    if (t.task_status === 'failed') { finishFail(t); return; }
+    setProgress(t.progress || 0, t.message || '处理中…');
+    state.pollTimer = setTimeout(pollStatus, POLL_INTERVAL_MS);
+  }
+
+  function setProgress(percent, message) {
+    percent = Math.max(0, Math.min(100, percent || 0));
+    $('prog-bar').style.width = percent + '%';
+    $('prog-percent').textContent = percent + '%';
+    $('prog-status-text').textContent = message || '';
+    var stage = percent <= 20 ? 1 : percent <= 85 ? 2 : 3;
+    ['prog-stage-1', 'prog-stage-2', 'prog-stage-3'].forEach(function (id, i) {
+      var el = $(id);
+      if (el) el.className = (i + 1) === stage ? 'text-medical-600 font-medium' : '';
+    });
+  }
+  function showProgress() { $('prog-wrap').classList.remove('hidden'); }
+  function hideProgress() { $('prog-wrap').classList.add('hidden'); }
+  function showResult() { $('result-card').classList.remove('hidden'); }
+  function hideResult() { $('result-card').classList.add('hidden'); }
+  function showError() { $('error-banner').classList.remove('hidden'); }
+  function hideError() { $('error-banner').classList.add('hidden'); }
+
+  function finishSuccess(t) {
+    state.generating = false;
+    state.pollTimer = null;
+    setProgress(100, '生成完成');
+    var p = getParams();
+    $('result-filename').textContent = '串场PPT_' + state.taskId.slice(0, 8) + '.pptx';
+    $('result-meta').textContent = '生成于 ' + new Date().toLocaleString() + ' · ' +
+      (p.slideSize === 'ultrawide' ? '超宽屏' : '16:9 宽屏') + ' · ' +
+      (p.lang === 'chinese' ? '中文' : '中英双语');
+    showResult();
+    updateGenerateBtn();
+    toast('success', 'PPT 生成完成，正在自动下载…');
+    triggerDownload(state.taskId);
+    saveHistory({
+      taskId: state.taskId,
+      name: state.agenda ? state.agenda.filename.replace(/\.[^.]+$/, '') : '未命名任务',
+      time: new Date().toLocaleString(),
+      status: 'done',
+    });
+  }
+
+  function finishFail(t) {
+    state.generating = false;
+    state.pollTimer = null;
+    hideProgress();
+    showError();
+    updateGenerateBtn();
+    saveHistory({
+      taskId: state.taskId,
+      name: state.agenda ? state.agenda.filename.replace(/\.[^.]+$/, '') : '未命名任务',
+      time: new Date().toLocaleString(),
+      status: 'failed',
+    });
+    var line = '';
+    if (t.error) {
+      var lines = String(t.error).split('\n').filter(function (l) { return l.trim(); });
+      line = lines[lines.length - 1] || '';
+    }
+    $('error-text').textContent = (t.message || '生成失败') + (line ? ' — ' + line : '');
+    toast('error', '生成失败：' + (t.message || '未知错误'), 7000);
+  }
+
+  function triggerDownload(taskId) {
+    var a = document.createElement('a');
+    a.href = apiBase() + '/api/download/' + taskId;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { a.remove(); }, 1000);
+  }
+
+  function resetAll() {
+    clearTimeout(state.pollTimer);
+    state.agenda = null;
+    state.speakers = [];
+    state.bgHome = null;
+    state.bgContent = null;
+    state.taskId = null;
+    state.generating = false;
+    clearParsed(); // 清空解析结果（parseSeq 递增使在途解析作废）
+    hideProgress();
+    hideResult();
+    hideError();
+    renderAll();
+    setStep(1);
+    toast('info', '已清空当前任务，可以重新上传');
+  }
+
+  // ---------------- 渲染总入口 ----------------
+  // 注意：只更新解析状态行/卡片可见性，不重绘可编辑卡片内容（避免清掉正在输入的文本）
+  function renderAll() {
+    renderChips();
+    renderPreviews();
+    renderConfirm();
+    renderStats();
+    updateGenerateBtn();
+    renderParseStatus();
+    toggleParseCards();
+  }
+
+  // ---------------- 拖拽/点击上传绑定 ----------------
+  function bindDropzone(dzId, inputId, kind) {
+    var dz = $(dzId);
+    var input = $(inputId);
+    dz.addEventListener('click', function (e) {
+      if (e.target.closest && (e.target.closest('[data-remove]') || e.target.closest('input[type="file"]'))) return;
+      input.value = '';
+      input.click();
+    });
+    input.addEventListener('change', function () {
+      if (input.files && input.files.length) uploadFiles(input.files, kind);
+    });
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      dz.addEventListener(ev, function (e) {
+        e.preventDefault();
+        dz.classList.add('border-medical-500', 'bg-medical-50');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      dz.addEventListener(ev, function (e) {
+        e.preventDefault();
+        dz.classList.remove('border-medical-500', 'bg-medical-50');
+      });
+    });
+    dz.addEventListener('drop', function (e) {
+      if (e.dataTransfer && e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files, kind);
+    });
+  }
+  bindDropzone('dz-speaker', 'input-speaker', 'speaker');
+  bindDropzone('dz-agenda', 'input-agenda', 'agenda');
+  bindDropzone('dz-bg-home', 'input-bg-home', 'bg-home');
+  bindDropzone('dz-bg-content', 'input-bg-content', 'bg-content');
+  bindDropzone('dz-bg-template', 'input-bg-template', 'bg-template');
+
+  // 步骤2 背景图预览点击 = 替换图片
+  $('preview-wrap-home').addEventListener('click', function () {
+    $('input-bg-home').value = '';
+    $('input-bg-home').click();
+  });
+  $('preview-wrap-content').addEventListener('click', function () {
+    $('input-bg-content').value = '';
+    $('input-bg-content').click();
+  });
+
+  // ---------------- 全局事件委托（chips 移除 / 历史操作） ----------------
+  document.addEventListener('click', function (e) {
+    var rm = e.target.closest ? e.target.closest('[data-remove]') : null;
+    if (rm) {
+      var fid = rm.getAttribute('data-remove');
+      var changedFiles = false;
+      if (state.agenda && state.agenda.file_id === fid) { state.agenda = null; changedFiles = true; }
+      var before = state.speakers.length;
+      state.speakers = state.speakers.filter(function (s) { return s.file_id !== fid; });
+      if (state.speakers.length !== before) changedFiles = true;
+      if (state.bgHome && state.bgHome.file_id === fid) state.bgHome = null;
+      if (state.bgContent && state.bgContent.file_id === fid) state.bgContent = null;
+      if (changedFiles) clearParsed(); // 日程/演讲者文件变更，解析结果作废
+      renderAll();
+      toast('info', '已移除该文件');
+      return;
+    }
+    var da = e.target.closest ? e.target.closest('[data-del-agenda]') : null;
+    if (da && state.parsed) {
+      var ai = parseInt(da.getAttribute('data-del-agenda'), 10);
+      if (!isNaN(ai) && ai >= 0 && ai < state.parsed.agenda.length) {
+        state.parsed.agenda.splice(ai, 1);
+        renderAgendaRows();
+        renderParseStatus();
+        renderStats();
+        toast('info', '已删除该环节');
+      }
+      return;
+    }
+    var ds = e.target.closest ? e.target.closest('[data-del-speaker]') : null;
+    if (ds && state.parsed) {
+      var si = parseInt(ds.getAttribute('data-del-speaker'), 10);
+      if (!isNaN(si) && si >= 0 && si < state.parsed.speakers.length) {
+        state.parsed.speakers.splice(si, 1);
+        renderSpeakerCards();
+        renderParseStatus();
+        renderStats();
+        toast('info', '已删除该演讲者');
+      }
+      return;
+    }
+    var pr = e.target.closest ? e.target.closest('[data-photo-replace]') : null;
+    if (pr && state.parsed) {
+      var pi = parseInt(pr.getAttribute('data-photo-replace'), 10);
+      if (!isNaN(pi) && pi >= 0 && pi < state.parsed.speakers.length) {
+        photoTargetIdx = pi;
+        var photoInput = $('input-photo');
+        photoInput.value = '';
+        photoInput.click();
+      }
+      return;
+    }
+    var dl = e.target.closest ? e.target.closest('[data-download]') : null;
+    if (dl) {
+      var tid = dl.getAttribute('data-download');
+      triggerDownload(tid);
+      toast('info', '开始下载任务 ' + tid.slice(0, 8) + ' 的 PPT');
+      return;
+    }
+    var del = e.target.closest ? e.target.closest('[data-history-del]') : null;
+    if (del) {
+      var dtid = del.getAttribute('data-history-del');
+      history = history.filter(function (h) { return h.taskId !== dtid; });
+      try { localStorage.setItem(LS.history, JSON.stringify(history)); } catch (e2) {}
+      renderHistory();
+      return;
+    }
+  });
+
+  // ---------------- 登录校验与用户信息 ----------------
+  async function initAuth() {
+    try {
+      var res = await authFetch(apiBase() + '/api/me');
+      if (!res.ok) {
+        // 未登录：跳转登录页
+        window.location.href = 'login.html';
+        return;
+      }
+      var data = await res.json();
+      var u = data.user || {};
+      state.accountKeyConfigured = !!u.api_key_configured;
+      $('user-name').textContent = u.username || '';
+      $('user-avatar').textContent = (u.username || '?').slice(0, 1);
+      $('user-role').textContent = u.is_admin ? '管理员' : '普通用户';
+      if (u.is_admin) $('link-admin').classList.remove('hidden');
+      if (!u.api_key_configured) {
+        toast('info', '账户尚未配置 DeepSeek API Key，可到「账户设置」填写', 6000);
+      }
+    } catch (e) {
+      // 后端未启动时不强制跳转，交给连通性检测提示
+    }
+  }
+
+  $('btn-logout').addEventListener('click', async function () {
+    try { await authFetch(apiBase() + '/api/logout', { method: 'POST' }); } catch (e) {}
+    try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) {}
+    window.location.href = 'login.html';
+  });
+
+  // ---------------- 按钮绑定 ----------------
+  $('btn-generate').addEventListener('click', startGenerate);
+  $('btn-regenerate').addEventListener('click', function () { hideResult(); startGenerate(); });
+  $('btn-retry').addEventListener('click', function () { hideError(); startGenerate(); });
+  $('btn-download').addEventListener('click', function () {
+    if (state.taskId) triggerDownload(state.taskId);
+  });
+  $('btn-new-task').addEventListener('click', resetAll);
+  $('nav-w3-new').addEventListener('click', resetAll);
+  $('btn-back-upload').addEventListener('click', function () { setStep(1); });
+  $('btn-account').addEventListener('click', function () {
+    // 账户设置已独立为 settings.html 页面
+    window.location.href = 'settings.html';
+  });
+  $('btn-clear-history').addEventListener('click', function () {
+    if (!history.length) { toast('info', '暂无历史记录'); return; }
+    if (window.confirm('确定清空全部历史记录？（不影响服务器上的任务文件）')) {
+      history = [];
+      try { localStorage.setItem(LS.history, '[]'); } catch (e) {}
+      renderHistory();
+      toast('success', '历史记录已清空');
+    }
+  });
+  $('history-search').addEventListener('input', renderHistory);
+
+  // ---------------- 资料解析绑定 ----------------
+  $('btn-parse').addEventListener('click', parseFiles);
+  $('btn-add-agenda-item').addEventListener('click', addAgendaItem);
+  $('btn-add-speaker').addEventListener('click', addSpeaker);
+  $('input-photo').addEventListener('change', function () {
+    var idx = photoTargetIdx;
+    photoTargetIdx = null;
+    if (!(this.files && this.files.length) || !state.parsed || idx == null) return;
+    var f = this.files[0];
+    if (!/\.(jpg|jpeg|png|gif|bmp)$/i.test(f.name)) {
+      toast('error', '照片仅支持 .jpg .jpeg .png .gif .bmp');
+      return;
+    }
+    uploadPhotoFor(f, idx);
+  });
+  // 可编辑内容：键入就地更新 state.parsed，不重渲染（避免失焦）
+  $('parse-agenda-rows').addEventListener('input', function (e) {
+    var el = e.target;
+    if (!state.parsed || !el.getAttribute) return;
+    var idx = parseInt(el.getAttribute('data-ai'), 10);
+    var field = el.getAttribute('data-field');
+    if (isNaN(idx) || !field || !state.parsed.agenda[idx]) return;
+    state.parsed.agenda[idx][field] = el.value;
+  });
+  $('parse-agenda-rows').addEventListener('change', function (e) {
+    var el = e.target;
+    if (el.tagName !== 'SELECT' || !state.parsed || !el.getAttribute) return;
+    var idx = parseInt(el.getAttribute('data-ai'), 10);
+    var field = el.getAttribute('data-field');
+    if (isNaN(idx) || !field || !state.parsed.agenda[idx]) return;
+    state.parsed.agenda[idx][field] = el.value;
+  });
+  $('parse-speakers-grid').addEventListener('input', function (e) {
+    var el = e.target;
+    if (!state.parsed || !el.getAttribute) return;
+    var idx = parseInt(el.getAttribute('data-sp'), 10);
+    var field = el.getAttribute('data-field');
+    if (isNaN(idx) || !field || !state.parsed.speakers[idx]) return;
+    state.parsed.speakers[idx][field] = el.value;
+  });
+
+  // ---------------- 步骤导航守卫（拦截 label 默认跳转） ----------------
+  function navGuard(id, validate) {
+    $(id).addEventListener('click', function (e) {
+      var msg = validate();
+      if (msg) {
+        e.preventDefault();
+        toast('error', msg);
+        return;
+      }
+      renderStats();
+    });
+  }
+  function commonGuard() {
+    if (state.uploading > 0) return '文件正在上传，请稍候…';
+    if (!state.agenda) return '请先上传会议日程文件';
+    // 已解析（编辑数据生成跳过 AI）时无需 Key
+    if (!state.parsed && !(localStorage.getItem(LS.apiKey) || '').trim() && !state.accountKeyConfigured) return '请先在「账户设置」中填写 DeepSeek API Key';
+    return null;
+  }
+  navGuard('nav-w1-next', commonGuard);
+  navGuard('nav-w2-next', commonGuard);
+
+  // ---------------- 参数变化与持久化 ----------------
+  document.querySelectorAll('input[name="size"], input[name="lang"]').forEach(function (r) {
+    r.addEventListener('change', renderStats);
+  });
+  // ---------------- 启动 ----------------
+  renderAll();
+  renderHistory();
+  checkBackend();
+  initAuth();
+})();
+</script>
+</body>
+</html>

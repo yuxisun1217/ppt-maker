@@ -96,6 +96,43 @@
 
 ---
 
+## Phase 6：Web 后端（进行中）
+
+### 6.1 后端骨架
+- [x] `main_web.py` — FastAPI + CORS + 上传/生成/状态/下载端点
+- [x] `requirements_web.txt` — fastapi / uvicorn / python-multipart
+- [x] `web/web_prototype.html` — 前端原型（待接入 API）
+
+### 6.2 核心逻辑迁移
+- [x] extractors 支持 bytes 输入（保持本地路径兼容）
+- [x] `tasks.py` — BackgroundTasks 任务层 + 进度上报 + 日志
+- [x] `main_web.py` 接入真实生成管线
+- [x] 上传清单持久化（manifest.json）
+
+### 6.3 待办
+- [x] 任务表/上传表迁移到 DB（SQLAlchemy ORM + Alembic，SQLite/PostgreSQL）
+- [x] Web 用户认证（Cookie 会话 + api_key 服务端按账号读取 + 管理员账户管理）
+- [x] 前端原型接入 API 调用
+- [x] 真实端到端验证（真 Key 全流程）
+
+### 6.4 前端对接（web/web_prototype.html 单文件 SPA）
+- [x] 文件上传（拖拽/点击，日程/演讲者/首页背景/内容页背景）→ `/api/upload`
+- [x] 生成提交（Fetch JSON）→ `/api/generate`，轮询 `/api/status`（2s，页面不阻塞）
+- [x] 完成后自动下载 + 结果卡片；失败显示错误横幅（可一键重试）
+- [x] 错误处理与 toast 提示；API Key / OCR Key / 后端地址存 localStorage
+- [x] 左侧历史记录改为本机真实记录（localStorage，可重新下载/删除/搜索/清空）
+- [x] 后端连通性检测徽标（页面加载时自动探测）
+- [x] 后端静态托管前端：`GET /` 重定向到 `/web/web_prototype.html`（StaticFiles）
+- [x] 账户设置独立为 `web/settings.html`（API Key / OCR Key / 后端地址 + 连通性检测），主页右上角「账户设置」跳转进入
+- [x] 登录/注册页 `web/login.html`：`GET /` 先进入登录页，已登录自动跳主页；首个注册账户自动成为管理员
+- [x] 会话认证：httpOnly Cookie（内存态，服务重启需重新登录）；上传/生成/状态/下载均需登录
+- [x] 生成时 api_key 服务端按账号读取（账号已配置时优先，回退请求携带的 Key）；设置页 Key 同步保存到账户
+- [x] 管理员用户管理页 `web/admin.html`：账户列表、新建、重置密码、授予/取消管理员、删除（主页对管理员显示入口）
+- [x] 背景槽位支持上传 .pptx 模版：`POST /api/template/background` 提取首页/内容页背景（`extractors/ppt_background.py`，zip+xml 固定代码），两槽位自动填充，图片直传方式保留
+- [x] 步骤 2 资料解析与编辑：手动「解析资料」按钮 → `POST /api/parse`（AI 解析日程/演讲者，可编辑卡片增删改、更换照片）；生成时携带编辑后数据（`/api/generate` 可选 `agenda_items`/`speakers`）跳过 AI 提取、无需 Key；文件变更/重置时解析结果失效
+
+---
+
 ## 每日开发日志规范
 
 每天工作结束后在 `dev_logs/YYYY-MM-DD.md` 记录：

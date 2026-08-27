@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 · 会议串场PPT生成器</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        medical: {
+          50:  '#EFF7FA',
+          100: '#DEEEF5',
+          200: '#BDDCEC',
+          300: '#8FC4DC',
+          400: '#4FA1C1',
+          500: '#1A7B9E',
+          600: '#14637F',
+          700: '#115368',
+          800: '#0E4253',
+          900: '#0B3542',
+        },
+      },
+      fontFamily: {
+        sans: ['-apple-system','BlinkMacSystemFont','PingFang SC','Microsoft YaHei','Noto Sans SC','Segoe UI','sans-serif'],
+      },
+    },
+  },
+}
+</script>
+<style>
+  ::selection { background: #BDDCEC; }
+</style>
+</head>
+
+<body class="min-h-screen text-gray-800 font-sans antialiased flex flex-col"
+      style="background: linear-gradient(160deg, #EFF7FA 0%, #DEEEF5 45%, #BDDCEC 100%);">
+
+<!-- ======================= 登录卡片 ======================= -->
+<main class="flex-1 flex items-center justify-center px-6 py-10">
+  <div class="w-full max-w-[420px]">
+
+    <!-- Logo 区 -->
+    <div class="flex flex-col items-center mb-6">
+      <div class="w-14 h-14 rounded-2xl bg-medical-500 flex items-center justify-center shadow-lg shadow-medical-300/60 mb-3">
+        <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 3.5h4a1 1 0 0 1 1 1V9.5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4.5a1 1 0 0 1 1-1Z" clip-rule="evenodd"/>
+        </svg>
+      </div>
+      <h1 class="text-xl font-bold text-gray-900">会议串场PPT生成器</h1>
+      <p class="text-xs text-gray-500 mt-1 tracking-wide">Conference Host Script PPT Generator</p>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-white/60 shadow-xl shadow-medical-200/40 p-7">
+      <!-- 登录 / 注册切换 -->
+      <div class="grid grid-cols-2 gap-1 bg-gray-100 rounded-xl p-1 mb-6">
+        <button type="button" id="tab-login" class="rounded-lg py-2 text-sm font-medium transition cursor-pointer bg-white text-medical-600 shadow-sm">登录</button>
+        <button type="button" id="tab-register" class="rounded-lg py-2 text-sm font-medium transition cursor-pointer text-gray-500 hover:text-gray-700">注册</button>
+      </div>
+
+      <!-- 错误提示 -->
+      <div id="form-error" class="hidden mb-4 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3.5 py-2.5 text-xs text-red-600">
+        <span class="font-bold shrink-0">✕</span><span id="form-error-text" class="flex-1 leading-5"></span>
+      </div>
+
+      <!-- ============ 登录表单 ============ -->
+      <form id="form-login" class="space-y-4">
+        <div>
+          <label for="login-username" class="text-xs font-medium text-gray-600">用户名</label>
+          <input type="text" id="login-username" autocomplete="username" placeholder="请输入用户名"
+                 class="mt-1.5 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-medical-200 focus:border-medical-300">
+        </div>
+        <div>
+          <label for="login-password" class="text-xs font-medium text-gray-600">密码</label>
+          <input type="password" id="login-password" autocomplete="current-password" placeholder="请输入密码"
+                 class="mt-1.5 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-medical-200 focus:border-medical-300">
+        </div>
+        <button type="submit" id="btn-login" class="w-full rounded-xl bg-medical-500 hover:bg-medical-600 text-white py-2.5 text-sm font-semibold shadow-md shadow-medical-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          登 录
+        </button>
+      </form>
+
+      <!-- ============ 注册表单 ============ -->
+      <form id="form-register" class="hidden space-y-4">
+        <div>
+          <label for="reg-username" class="text-xs font-medium text-gray-600">用户名 <span class="text-red-400">*</span></label>
+          <input type="text" id="reg-username" autocomplete="username" placeholder="2-64 个字符"
+                 class="mt-1.5 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-medical-200 focus:border-medical-300">
+        </div>
+        <div>
+          <label for="reg-password" class="text-xs font-medium text-gray-600">密码 <span class="text-red-400">*</span></label>
+          <input type="password" id="reg-password" autocomplete="new-password" placeholder="至少 4 位"
+                 class="mt-1.5 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-medical-200 focus:border-medical-300">
+        </div>
+        <div>
+          <label for="reg-password2" class="text-xs font-medium text-gray-600">确认密码 <span class="text-red-400">*</span></label>
+          <input type="password" id="reg-password2" autocomplete="new-password" placeholder="再次输入密码"
+                 class="mt-1.5 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-medical-200 focus:border-medical-300">
+        </div>
+        <button type="submit" id="btn-register" class="w-full rounded-xl bg-medical-500 hover:bg-medical-600 text-white py-2.5 text-sm font-semibold shadow-md shadow-medical-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          注册并登录
+        </button>
+        <p class="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-50/60 rounded-lg px-3 py-2">
+          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>
+          第一个注册的账户将自动成为管理员，可管理其他账户。
+        </p>
+      </form>
+    </div>
+
+    <p class="text-center text-[11px] text-gray-400 mt-4">密码使用 SHA256+Salt 哈希存储 · 本工具面向单机/内网使用</p>
+  </div>
+</main>
+
+<!-- ======================= Toast 容器 ======================= -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 w-80 max-w-[90vw]"></div>
+
+<!-- ======================= 应用逻辑 ======================= -->
+<script>
+(function () {
+  'use strict';
+
+  var LS_API_BASE = 'pptmaker_api_base';
+  var DEFAULT_API_BASE = location.protocol === 'file:'
+    ? 'http://127.0.0.1:8000'
+    : location.origin;
+
+  function $(id) { return document.getElementById(id); }
+  var TOKEN_KEY = 'pptmaker_session_token';
+  function apiBase() {
+    // 通过后端访问时固定用同源地址，避免 localhost/127.0.0.1 混用导致会话丢失
+    if (location.protocol !== 'file:') return location.origin;
+    return (localStorage.getItem(LS_API_BASE) || DEFAULT_API_BASE).replace(/\/+$/, '');
+  }
+  function sessionToken() {
+    try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+  }
+  function authFetch(url, options) {
+    var opt = Object.assign({}, options || {}, { credentials: 'include' });
+    var tk = sessionToken();
+    if (tk) {
+      opt.headers = Object.assign({}, opt.headers || {}, { 'X-Session-Token': tk });
+    }
+    return fetch(url, opt);
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function toast(type, text, ms) {
+    var t = {
+      success: { icon: '✓', cls: 'bg-emerald-500' },
+      error: { icon: '✕', cls: 'bg-red-500' },
+      info: { icon: 'ℹ', cls: 'bg-medical-500' },
+    }[type] || { icon: 'ℹ', cls: 'bg-medical-500' };
+    var el = document.createElement('div');
+    el.className = 'flex items-start gap-2 rounded-xl text-white text-sm shadow-lg px-4 py-3 ' + t.cls;
+    el.innerHTML = '<span class="font-bold leading-5">' + t.icon + '</span><span class="flex-1 leading-5 break-all">' + esc(text) + '</span>';
+    $('toast-container').appendChild(el);
+    setTimeout(function () {
+      el.style.transition = 'opacity .3s';
+      el.style.opacity = '0';
+      setTimeout(function () { el.remove(); }, 320);
+    }, ms || 4500);
+  }
+
+  function showError(msg) {
+    $('form-error-text').textContent = msg;
+    $('form-error').classList.remove('hidden');
+  }
+  function hideError() {
+    $('form-error').classList.add('hidden');
+  }
+
+  // 统一 API 封装：携带会话 Cookie + Token 头，后端返回 detail 时抛错
+  async function api(path, options) {
+    var res;
+    try {
+      res = await authFetch(apiBase() + path, options);
+    } catch (e) {
+      throw new Error('无法连接后端服务（' + apiBase() + '）。请先启动：python -m uvicorn main_web:app --port 8000');
+    }
+    if (!res.ok) {
+      var detail = '';
+      try { var j = await res.json(); detail = j.detail || ''; } catch (e) {}
+      throw new Error(detail || ('请求失败 HTTP ' + res.status));
+    }
+    try { return await res.json(); } catch (e) { return {}; }
+  }
+
+  // ---------------- 登录 / 注册切换 ----------------
+  function switchTab(which) {
+    hideError();
+    var isLogin = which === 'login';
+    $('tab-login').className = isLogin
+      ? 'rounded-lg py-2 text-sm font-medium transition cursor-pointer bg-white text-medical-600 shadow-sm'
+      : 'rounded-lg py-2 text-sm font-medium transition cursor-pointer text-gray-500 hover:text-gray-700';
+    $('tab-register').className = isLogin
+      ? 'rounded-lg py-2 text-sm font-medium transition cursor-pointer text-gray-500 hover:text-gray-700'
+      : 'rounded-lg py-2 text-sm font-medium transition cursor-pointer bg-white text-medical-600 shadow-sm';
+    $('form-login').classList.toggle('hidden', !isLogin);
+    $('form-register').classList.toggle('hidden', isLogin);
+    (isLogin ? $('login-username') : $('reg-username')).focus();
+  }
+  $('tab-login').addEventListener('click', function () { switchTab('login'); });
+  $('tab-register').addEventListener('click', function () { switchTab('register'); });
+
+  // ---------------- 提交 ----------------
+  function setBusy(btn, busy, label) {
+    btn.disabled = busy;
+    btn.textContent = busy ? '请稍候…' : label;
+  }
+
+  $('form-login').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    hideError();
+    var btn = $('btn-login');
+    setBusy(btn, true, '登 录');
+    try {
+      var data = await api('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: $('login-username').value.trim(),
+          password: $('login-password').value,
+        }),
+      });
+      try { sessionStorage.setItem(TOKEN_KEY, data.token || ''); } catch (e2) {}
+      toast('success', '欢迎回来，' + (data.user && data.user.username) + '！正在进入主页…');
+      setTimeout(function () { window.location.href = 'web_prototype.html'; }, 500);
+    } catch (err) {
+      showError(err.message);
+      setBusy(btn, false, '登 录');
+    }
+  });
+
+  $('form-register').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    hideError();
+    var username = $('reg-username').value.trim();
+    var pwd = $('reg-password').value;
+    if (username.length < 2) { showError('用户名至少 2 个字符'); return; }
+    if (pwd.length < 4) { showError('密码至少 4 位'); return; }
+    if (pwd !== $('reg-password2').value) { showError('两次输入的密码不一致'); return; }
+    var btn = $('btn-register');
+    setBusy(btn, true, '注册并登录');
+    try {
+      var data = await api('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: pwd }),
+      });
+      var u = data.user || {};
+      try { sessionStorage.setItem(TOKEN_KEY, data.token || ''); } catch (e2) {}
+      toast('success', '注册成功' + (u.is_admin ? '，你已成为管理员' : '') + '！正在进入主页…');
+      setTimeout(function () { window.location.href = 'web_prototype.html'; }, 500);
+    } catch (err) {
+      showError(err.message);
+      setBusy(btn, false, '注册并登录');
+    }
+  });
+
+  // 回车提交
+  ['login-username', 'login-password'].forEach(function (id) {
+    $(id).addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); $('btn-login').click(); }
+    });
+  });
+
+  // ---------------- 启动：已登录则直接进入主页 ----------------
+  (async function () {
+    try {
+      var res = await authFetch(apiBase() + '/api/me');
+      if (res.ok) {
+        window.location.href = 'web_prototype.html';
+        return;
+      }
+    } catch (e) {
+      toast('error', '无法连接后端 ' + apiBase() + '，请先启动：python -m uvicorn main_web:app --port 8000', 8000);
+    }
+    $('login-username').focus();
+  })();
+})();
+</script>
+</body>
+</html>

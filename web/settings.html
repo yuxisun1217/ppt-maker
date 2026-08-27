@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>账户设置 · 会议串场PPT生成器</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        medical: {
+          50:  '#EFF7FA',
+          100: '#DEEEF5',
+          200: '#BDDCEC',
+          300: '#8FC4DC',
+          400: '#4FA1C1',
+          500: '#1A7B9E',
+          600: '#14637F',
+          700: '#115368',
+          800: '#0E4253',
+          900: '#0B3542',
+        },
+      },
+      fontFamily: {
+        sans: ['-apple-system','BlinkMacSystemFont','PingFang SC','Microsoft YaHei','Noto Sans SC','Segoe UI','sans-serif'],
+      },
+    },
+  },
+}
+</script>
+<style>
+  ::selection { background: #BDDCEC; }
+</style>
+</head>
+
+<body class="bg-[#F4F7F9] min-h-screen text-gray-800 font-sans antialiased">
+
+<!-- ======================= 顶部导航 ======================= -->
+<header class="bg-white border-b border-gray-200">
+  <div class="max-w-[960px] mx-auto px-6 h-16 flex items-center justify-between">
+    <a href="web_prototype.html" class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-medical-500 flex items-center justify-center shadow-sm shadow-medical-200">
+        <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 3.5h4a1 1 0 0 1 1 1V9.5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4.5a1 1 0 0 1 1-1Z" clip-rule="evenodd"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-[17px] font-bold text-gray-900 leading-tight">会议串场PPT生成器</h1>
+        <p class="text-[11px] text-gray-400 leading-tight tracking-wide">Conference Host Script PPT Generator</p>
+      </div>
+    </a>
+    <a href="web_prototype.html" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition font-medium">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>
+      返回主页
+    </a>
+  </div>
+</header>
+
+<!-- ======================= 账户设置 ======================= -->
+<main class="max-w-[680px] mx-auto px-6 py-8">
+  <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6 space-y-5">
+
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-lg bg-medical-50 flex items-center justify-center">
+          <svg class="w-5 h-5 text-medical-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+        </div>
+        <div>
+          <h2 class="text-[15px] font-semibold text-gray-800">账户设置</h2>
+          <p class="text-xs text-gray-400 mt-0.5">DeepSeek API Key 必填 · OCR.space Key 可选（日程为图片时需要）</p>
+        </div>
+      </div>
+      <span id="backend-status" class="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">检测后端…</span>
+    </div>
+
+    <!-- DeepSeek API Key -->
+    <div>
+      <label for="input-api-key" class="text-xs font-medium text-gray-600">DeepSeek API Key <span class="text-red-400">*</span></label>
+      <div class="mt-1.5 relative">
+        <input type="password" id="input-api-key" placeholder="sk-..." autocomplete="off"
+               class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-medical-200 focus:border-medical-300">
+        <button type="button" id="btn-toggle-key" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-medical-500 hover:text-medical-700 cursor-pointer">显示</button>
+      </div>
+      <p class="text-[11px] text-gray-400 mt-1.5">用于日程识别与串场文案生成，随生成请求发送至后端。</p>
+    </div>
+
+    <!-- OCR.space API Key -->
+    <div>
+      <label for="input-ocr-key" class="text-xs font-medium text-gray-600">OCR.space API Key <span class="text-gray-400">（可选）</span></label>
+      <div class="mt-1.5 relative">
+        <input type="password" id="input-ocr-key" placeholder="K8xxxxx..." autocomplete="off"
+               class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-medical-200 focus:border-medical-300">
+        <button type="button" id="btn-toggle-ocr" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-medical-500 hover:text-medical-700 cursor-pointer">显示</button>
+      </div>
+      <p class="text-[11px] text-gray-400 mt-1.5">日程为图片时需要，用于识别日程截图中的文字。</p>
+    </div>
+
+    <!-- 后端地址 -->
+    <div>
+      <label for="input-api-base" class="text-xs font-medium text-gray-600">后端地址</label>
+      <input type="text" id="input-api-base" class="mt-1.5 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-medical-200 focus:border-medical-300" placeholder="http://127.0.0.1:8000">
+      <p class="text-[11px] text-gray-400 mt-1.5">默认为本机 FastAPI 服务。通过服务器地址访问时自动使用同源地址，此设置仅在以 file:// 方式打开页面时生效。</p>
+    </div>
+
+    <p class="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-50/60 rounded-lg px-3 py-2">
+      <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>
+      登录状态下，Key 同时保存到你的账户（服务端按账号读取）；同时保留本机浏览器副本，离线时仍可携带发送。
+    </p>
+
+    <div class="flex items-center gap-3 pt-1">
+      <button type="button" id="btn-save" class="inline-flex items-center gap-2 rounded-xl bg-medical-500 hover:bg-medical-600 text-white px-6 py-2.5 text-sm font-medium shadow-sm shadow-medical-200 transition cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+        保存设置
+      </button>
+      <button type="button" id="btn-test" class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 px-5 py-2.5 text-sm font-medium transition cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+        测试后端连接
+      </button>
+    </div>
+  </div>
+
+  <p class="text-center text-xs text-gray-400 mt-4">输入即自动保存到本机浏览器 · 返回主页后立即生效</p>
+</main>
+
+<!-- ======================= Toast 容器 ======================= -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 w-80 max-w-[90vw]"></div>
+
+<!-- ======================= 应用逻辑 ======================= -->
+<script>
+(function () {
+  'use strict';
+
+  // 与主页共用同一组 localStorage key
+  var LS = {
+    apiBase: 'pptmaker_api_base',
+    apiKey: 'pptmaker_api_key',
+    ocrKey: 'pptmaker_ocr_key',
+  };
+  var DEFAULT_API_BASE = location.protocol === 'file:'
+    ? 'http://127.0.0.1:8000'
+    : location.origin;
+  var BADGE = {
+    gray: 'inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1',
+    green: 'inline-flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1',
+    red: 'inline-flex items-center gap-1 text-[11px] text-red-500 bg-red-50 border border-red-200 rounded-full px-2.5 py-1',
+  };
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function toast(type, text, ms) {
+    var t = {
+      success: { icon: '✓', cls: 'bg-emerald-500' },
+      error: { icon: '✕', cls: 'bg-red-500' },
+      info: { icon: 'ℹ', cls: 'bg-medical-500' },
+    }[type] || { icon: 'ℹ', cls: 'bg-medical-500' };
+    var el = document.createElement('div');
+    el.className = 'flex items-start gap-2 rounded-xl text-white text-sm shadow-lg px-4 py-3 ' + t.cls;
+    el.innerHTML = '<span class="font-bold leading-5">' + t.icon + '</span><span class="flex-1 leading-5 break-all">' + esc(text) + '</span>';
+    $('toast-container').appendChild(el);
+    setTimeout(function () {
+      el.style.transition = 'opacity .3s';
+      el.style.opacity = '0';
+      setTimeout(function () { el.remove(); }, 320);
+    }, ms || 4500);
+  }
+
+  function apiBase() {
+    // 通过后端访问时固定用同源地址；输入的后端地址仅对 file:// 打开方式生效
+    if (location.protocol !== 'file:') return location.origin;
+    return ($('input-api-base').value.trim() || DEFAULT_API_BASE).replace(/\/+$/, '');
+  }
+  var TOKEN_KEY = 'pptmaker_session_token';
+  function sessionToken() {
+    try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+  }
+  function authFetch(url, options) {
+    var opt = Object.assign({}, options || {}, { credentials: 'include' });
+    var tk = sessionToken();
+    if (tk) {
+      opt.headers = Object.assign({}, opt.headers || {}, { 'X-Session-Token': tk });
+    }
+    return fetch(url, opt);
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(LS.apiBase, $('input-api-base').value.trim() || DEFAULT_API_BASE);
+      localStorage.setItem(LS.apiKey, $('input-api-key').value);
+      localStorage.setItem(LS.ocrKey, $('input-ocr-key').value);
+    } catch (e) {
+      toast('error', '保存失败：浏览器可能禁用了本地存储');
+    }
+  }
+
+  // 后端连通性检测（任意 HTTP 响应，含 404，都说明服务可达）
+  async function checkBackend() {
+    var badge = $('backend-status');
+    badge.textContent = '检测后端…';
+    badge.className = BADGE.gray;
+    try {
+      await fetch(apiBase() + '/api/status/00000000000000000000000000000000');
+      badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>后端已连接';
+      badge.className = BADGE.green;
+    } catch (e) {
+      badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>后端未连接';
+      badge.className = BADGE.red;
+      toast('error', '无法连接后端 ' + apiBase() + '，请先启动：python -m uvicorn main_web:app --port 8000', 8000);
+    }
+  }
+
+  // ---------------- 初始化 ----------------
+  $('input-api-base').value = localStorage.getItem(LS.apiBase) || DEFAULT_API_BASE;
+  $('input-api-key').value = localStorage.getItem(LS.apiKey) || '';
+  $('input-ocr-key').value = localStorage.getItem(LS.ocrKey) || '';
+
+  // 显示/隐藏 Key
+  function bindToggle(btnId, inputId) {
+    $(btnId).addEventListener('click', function () {
+      var inp = $(inputId);
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+      $(btnId).textContent = inp.type === 'password' ? '显示' : '隐藏';
+    });
+  }
+  bindToggle('btn-toggle-key', 'input-api-key');
+  bindToggle('btn-toggle-ocr', 'input-ocr-key');
+
+  // 输入即保存，返回主页立即生效
+  ['input-api-key', 'input-ocr-key', 'input-api-base'].forEach(function (id) {
+    $(id).addEventListener('input', persist);
+  });
+
+  // 登录状态下把 Key 同步保存到账户（服务端），生成时按账号读取
+  async function saveToAccount() {
+    try {
+      var res = await authFetch(apiBase() + '/api/account/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: $('input-api-key').value,
+          ocr_api_key: $('input-ocr-key').value,
+        }),
+      });
+      if (res.status === 401) { window.location.href = 'login.html'; return false; }
+      return res.ok;
+    } catch (e) {
+      return false; // 后端不可达：仅保留本机副本
+    }
+  }
+
+  $('btn-save').addEventListener('click', async function () {
+    persist();
+    var synced = await saveToAccount();
+    if (!$('input-api-key').value.trim()) {
+      toast('info', '已保存，但 DeepSeek API Key 仍为空，生成前需要填写', 6000);
+    } else if (synced) {
+      toast('success', '设置已保存到你的账户与本机浏览器');
+    } else {
+      toast('success', '已保存到本机浏览器（后端不可达，未同步到账户）', 6000);
+    }
+    checkBackend();
+  });
+  $('btn-test').addEventListener('click', checkBackend);
+
+  // 登录校验：未登录跳转登录页（后端未启动时留在本页，便于修改地址）
+  (async function () {
+    try {
+      var res = await authFetch(apiBase() + '/api/me');
+      if (!res.ok) { window.location.href = 'login.html'; }
+    } catch (e) { /* 后端未启动 */ }
+  })();
+
+  checkBackend();
+})();
+</script>
+</body>
+</html>

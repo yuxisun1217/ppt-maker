@@ -1,51 +1,85 @@
-import sqlite3
+"""Data access layer — SQLAlchemy ORM over SQLite (dev/test) or PostgreSQL.
+
+Public functions keep the exact signatures the desktop UI used with the old
+raw-sqlite implementation, so the desktop app is unaffected by the migration.
+
+DATABASE_URL comes from .env (see .env.example); falls back to a SQLite file
+anchored at the project root.
+"""
 import hashlib
 import os
 import secrets
+from pathlib import Path
 from typing import Optional
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app_data.db')
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import sessionmaker
 
+from database.models import Base, Speaker, Task, Upload, User
 
-def _connect():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / '.env')
+
+_DEFAULT_DB_URL = f'sqlite:///{(BASE_DIR / "app_data.db").as_posix()}'
+DATABASE_URL = os.environ.get('DATABASE_URL', _DEFAULT_DB_URL)
+
+# Relative SQLite paths anchor at the project root, not the process CWD
+if DATABASE_URL.startswith('sqlite'):
+    _prefix, _, _path = DATABASE_URL.partition('///')
+    if _path and _path != ':memory:' and not Path(_path).is_absolute():
+        DATABASE_URL = f'sqlite:///{(BASE_DIR / _path).as_posix()}'
+
+# SQLite needs these pragmas; harmless extras ignored on other engines.
+_engine_kwargs = {}
+if DATABASE_URL.startswith('sqlite'):
+    _engine_kwargs['connect_args'] = {'check_same_thread': False}
+
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, **_engine_kwargs)
+SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
 def init_db():
-    conn = _connect()
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            username      TEXT    NOT NULL UNIQUE,
-            password_hash TEXT   NOT NULL,
-            salt          TEXT   NOT NULL,
-            api_key       TEXT   DEFAULT '',
-            created_at    TEXT   DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS speakers (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT NOT NULL UNIQUE,
-            photo_path  TEXT DEFAULT '',
-            bio         TEXT DEFAULT '',
-            institution TEXT DEFAULT '',
-            created_at  TEXT DEFAULT (datetime('now','localtime'))
-        )
-    ''')
-    try:
-        conn.execute('ALTER TABLE speakers ADD COLUMN institution TEXT DEFAULT \'\'')
-    except sqlite3.OperationalError:
-        pass
-    try:
-        conn.execute('ALTER TABLE users ADD COLUMN ocr_api_key TEXT DEFAULT \'\'')
-    except sqlite3.OperationalError:
-        pass
-    conn.commit()
-    conn.close()
+    """Create missing tables (SQLite dev path) and backfill columns added
+    after the original raw-sqlite schema. Alembic manages Postgres/CI
+    migrations; this keeps the desktop app working against old SQLite DBs."""
+    Base.metadata.create_all(engine)
+    if DATABASE_URL.startswith('sqlite'):
+        _backfill_legacy_columns()
 
+
+def _backfill_legacy_columns():
+    """ALTER TABLE ADD COLUMN for columns new models expect but old SQLite
+    databases (created by the raw-sqlite schema) don't have."""
+    import sqlite3
+
+    db_path = engine.url.database or ''
+    if not db_path or not os.path.exists(db_path):
+        return
+    conn = sqlite3.connect(db_path)
+    try:
+        for table, cols in (
+            ('users', {'ocr_api_key': "TEXT DEFAULT ''",
+                       'updated_at': 'TIMESTAMP',
+                       'is_admin': 'INTEGER DEFAULT 0'}),
+            ('speakers', {'institution': "TEXT DEFAULT ''",
+                          'bio_en': "TEXT DEFAULT ''",
+                          'title': "TEXT DEFAULT ''",
+                          'updated_at': 'TIMESTAMP'}),
+        ):
+            existing = {r[1] for r in conn.execute(f'PRAGMA table_info({table})')}
+            for col, ddl in cols.items():
+                if col not in existing:
+                    conn.execute(f'ALTER TABLE {table} ADD COLUMN {col} {ddl}')
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Users — signatures unchanged from the raw-sqlite implementation
+# ---------------------------------------------------------------------------
 
 def _hash_password(password: str, salt: Optional[str] = None) -> tuple:
     if salt is None:
@@ -54,120 +88,258 @@ def _hash_password(password: str, salt: Optional[str] = None) -> tuple:
     return h, salt
 
 
+def _user_to_dict(u: User) -> dict:
+    return {'id': u.id, 'username': u.username,
+            'api_key': u.api_key or '', 'ocr_api_key': u.ocr_api_key or '',
+            'is_admin': bool(u.is_admin)}
+
+
 def create_user(username: str, password: str, api_key: str = '',
                 ocr_api_key: str = '') -> Optional[int]:
-    conn = _connect()
-    try:
+    with SessionLocal() as s:
         pwd_hash, salt = _hash_password(password)
-        cur = conn.execute(
-            'INSERT INTO users (username, password_hash, salt, api_key, ocr_api_key) '
-            'VALUES (?, ?, ?, ?, ?)',
-            (username.strip(), pwd_hash, salt, api_key.strip(), ocr_api_key.strip())
-        )
-        conn.commit()
-        return cur.lastrowid
-    except sqlite3.IntegrityError:
-        return None
-    finally:
-        conn.close()
+        u = User(username=username.strip(), password_hash=pwd_hash, salt=salt,
+                 api_key=api_key.strip(), ocr_api_key=ocr_api_key.strip())
+        s.add(u)
+        try:
+            s.commit()
+        except IntegrityError:
+            s.rollback()
+            return None
+        return u.id
 
 
 def authenticate(username: str, password: str) -> Optional[dict]:
-    conn = _connect()
-    row = conn.execute(
-        'SELECT id, username, password_hash, salt, api_key, ocr_api_key '
-        'FROM users WHERE username = ?',
-        (username.strip(),)
-    ).fetchone()
-    conn.close()
-    if row is None:
-        return None
-    pwd_hash, _ = _hash_password(password, row['salt'])
-    if pwd_hash != row['password_hash']:
-        return None
-    return {'id': row['id'], 'username': row['username'],
-            'api_key': row['api_key'], 'ocr_api_key': row['ocr_api_key']}
+    with SessionLocal() as s:
+        u = s.scalar(select(User).where(User.username == username.strip()))
+        if u is None:
+            return None
+        pwd_hash, _ = _hash_password(password, u.salt)
+        if pwd_hash != u.password_hash:
+            return None
+        return _user_to_dict(u)
 
 
 def get_user(user_id: int) -> Optional[dict]:
-    conn = _connect()
-    row = conn.execute(
-        'SELECT id, username, api_key, ocr_api_key FROM users WHERE id = ?', (user_id,)
-    ).fetchone()
-    conn.close()
-    if row is None:
-        return None
-    return {'id': row['id'], 'username': row['username'],
-            'api_key': row['api_key'], 'ocr_api_key': row['ocr_api_key']}
+    with SessionLocal() as s:
+        u = s.get(User, user_id)
+        return _user_to_dict(u) if u else None
 
 
 def update_api_key(user_id: int, api_key: str):
-    conn = _connect()
-    conn.execute('UPDATE users SET api_key = ? WHERE id = ?', (api_key.strip(), user_id))
-    conn.commit()
-    conn.close()
+    with SessionLocal() as s:
+        u = s.get(User, user_id)
+        if u:
+            u.api_key = api_key.strip()
+            s.commit()
 
 
 def update_ocr_api_key(user_id: int, ocr_api_key: str):
-    conn = _connect()
-    conn.execute('UPDATE users SET ocr_api_key = ? WHERE id = ?',
-                 (ocr_api_key.strip(), user_id))
-    conn.commit()
-    conn.close()
+    with SessionLocal() as s:
+        u = s.get(User, user_id)
+        if u:
+            u.ocr_api_key = ocr_api_key.strip()
+            s.commit()
 
 
 def update_user(user_id: int, username: str, api_key: str, ocr_api_key: str) -> bool:
     """Update user profile fields. Returns False if username is taken by another user."""
-    conn = _connect()
-    try:
-        conn.execute(
-            'UPDATE users SET username = ?, api_key = ?, ocr_api_key = ? WHERE id = ?',
-            (username.strip(), api_key.strip(), ocr_api_key.strip(), user_id)
-        )
-        conn.commit()
-        return True
-    except sqlite3.IntegrityError:
-        return False
-    finally:
-        conn.close()
+    with SessionLocal() as s:
+        u = s.get(User, user_id)
+        if u is None:
+            return False
+        u.username = username.strip()
+        u.api_key = api_key.strip()
+        u.ocr_api_key = ocr_api_key.strip()
+        try:
+            s.commit()
+            return True
+        except IntegrityError:
+            s.rollback()
+            return False
 
 
 def update_password(user_id: int, new_password: str):
     """Update password with new salt + hash."""
-    pwd_hash, salt = _hash_password(new_password)
-    conn = _connect()
-    conn.execute(
-        'UPDATE users SET password_hash = ?, salt = ? WHERE id = ?',
-        (pwd_hash, salt, user_id)
-    )
-    conn.commit()
-    conn.close()
+    with SessionLocal() as s:
+        u = s.get(User, user_id)
+        if u:
+            pwd_hash, salt = _hash_password(new_password)
+            u.password_hash = pwd_hash
+            u.salt = salt
+            s.commit()
 
+
+def list_users() -> list:
+    """List all users. Never returns password hashes or API keys."""
+    with SessionLocal() as s:
+        rows = s.scalars(select(User).order_by(User.id)).all()
+        return [{'id': u.id, 'username': u.username,
+                 'is_admin': bool(u.is_admin),
+                 'created_at': u.created_at.isoformat() if u.created_at else None,
+                 'api_key_configured': bool((u.api_key or '').strip()),
+                 'ocr_key_configured': bool((u.ocr_api_key or '').strip())}
+                for u in rows]
+
+
+def delete_user(user_id: int) -> bool:
+    """Delete a user. Their tasks/uploads keep user_id NULL via FK SET NULL."""
+    with SessionLocal() as s:
+        u = s.get(User, user_id)
+        if u is None:
+            return False
+        s.delete(u)
+        s.commit()
+        return True
+
+
+def set_admin(user_id: int, is_admin: bool) -> bool:
+    with SessionLocal() as s:
+        u = s.get(User, user_id)
+        if u is None:
+            return False
+        u.is_admin = is_admin
+        s.commit()
+        return True
+
+
+def ensure_admin() -> Optional[str]:
+    """If users exist but none is admin (e.g. desktop-app legacy data),
+    promote the earliest-registered user. Returns the promoted username."""
+    with SessionLocal() as s:
+        if s.scalar(select(User).where(User.is_admin.is_(True))) is not None:
+            return None
+        first = s.scalar(select(User).order_by(User.id).limit(1))
+        if first is None:
+            return None
+        first.is_admin = True
+        s.commit()
+        return first.username
+
+
+# ---------------------------------------------------------------------------
+# Speakers — signatures unchanged from the raw-sqlite implementation
+# ---------------------------------------------------------------------------
 
 def save_speaker(name: str, photo_path: str = '', bio: str = '', institution: str = ''):
-    conn = _connect()
-    conn.execute(
-        'INSERT OR REPLACE INTO speakers (name, photo_path, bio, institution) '
-        'VALUES (?, ?, ?, ?)',
-        (name.strip(), photo_path, bio, institution)
-    )
-    conn.commit()
-    conn.close()
+    """Insert or replace a speaker by name (matches old INSERT OR REPLACE)."""
+    with SessionLocal() as s:
+        sp = s.scalar(select(Speaker).where(Speaker.name == name.strip()))
+        if sp is None:
+            sp = Speaker(name=name.strip())
+            s.add(sp)
+        sp.photo_path = photo_path
+        sp.bio = bio
+        sp.institution = institution
+        s.commit()
 
 
 def load_speakers() -> list:
-    conn = _connect()
-    rows = conn.execute(
-        'SELECT name, photo_path, bio, institution FROM speakers ORDER BY name'
-    ).fetchall()
-    conn.close()
-    return [{'name': r['name'], 'photo_path': r['photo_path'], 'bio': r['bio'],
-             'institution': r['institution']}
-            for r in rows]
+    with SessionLocal() as s:
+        rows = s.scalars(select(Speaker).order_by(Speaker.name)).all()
+        return [{'name': r.name, 'photo_path': r.photo_path, 'bio': r.bio,
+                 'institution': r.institution}
+                for r in rows]
 
 
 def delete_speaker(name: str):
-    conn = _connect()
-    conn.execute('DELETE FROM speakers WHERE name = ?', (name.strip(),))
-    conn.commit()
-    conn.close()
+    with SessionLocal() as s:
+        sp = s.scalar(select(Speaker).where(Speaker.name == name.strip()))
+        if sp:
+            s.delete(sp)
+            s.commit()
+
+
+# ---------------------------------------------------------------------------
+# Tasks — web generation task persistence
+# ---------------------------------------------------------------------------
+
+def create_task(task_id: str, options: Optional[dict] = None,
+                user_id: Optional[int] = None) -> str:
+    import json
+    with SessionLocal() as s:
+        t = Task(id=task_id, user_id=user_id, task_status='pending',
+                 progress=0, message='等待生成',
+                 options=json.dumps(options, ensure_ascii=False) if options else None)
+        s.add(t)
+        s.commit()
+        return t.id
+
+
+def get_task(task_id: str) -> Optional[dict]:
+    with SessionLocal() as s:
+        t = s.get(Task, task_id)
+        return _task_to_dict(t) if t else None
+
+
+def update_task(task_id: str, **fields) -> bool:
+    """Update task fields by keyword. Returns False if the task doesn't exist."""
+    import json
+    with SessionLocal() as s:
+        t = s.get(Task, task_id)
+        if t is None:
+            return False
+        if 'options' in fields and isinstance(fields['options'], (dict, list)):
+            fields['options'] = json.dumps(fields['options'], ensure_ascii=False)
+        for k, v in fields.items():
+            if hasattr(t, k):
+                setattr(t, k, v)
+        s.commit()
+        return True
+
+
+def list_tasks(limit: int = 100) -> list:
+    with SessionLocal() as s:
+        rows = s.scalars(
+            select(Task).order_by(Task.created_at.desc()).limit(limit)).all()
+        return [_task_to_dict(t) for t in rows]
+
+
+def _task_to_dict(t: Task) -> dict:
+    import json
+    options = None
+    if t.options:
+        try:
+            options = json.loads(t.options)
+        except ValueError:
+            options = t.options
+    return {
+        'task_id': t.id,
+        'user_id': t.user_id,
+        'task_status': t.task_status,
+        'progress': t.progress,
+        'message': t.message,
+        'options': options,
+        'pptx_path': t.pptx_path,
+        'error': t.error,
+        'created_at': t.created_at.isoformat() if t.created_at else None,
+        'updated_at': t.updated_at.isoformat() if t.updated_at else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Uploads — web upload persistence
+# ---------------------------------------------------------------------------
+
+def create_upload(file_id: str, filename: str, path: str, size: int,
+                  user_id: Optional[int] = None) -> str:
+    with SessionLocal() as s:
+        u = Upload(id=file_id, user_id=user_id, filename=filename,
+                   path=path, size=size)
+        s.add(u)
+        s.commit()
+        return u.id
+
+
+def get_upload(file_id: str) -> Optional[dict]:
+    with SessionLocal() as s:
+        u = s.get(Upload, file_id)
+        return {'file_id': u.id, 'filename': u.filename, 'path': u.path,
+                'size': u.size} if u else None
+
+
+def list_uploads() -> list:
+    with SessionLocal() as s:
+        rows = s.scalars(select(Upload).order_by(Upload.created_at)).all()
+        return [{'file_id': u.id, 'filename': u.filename, 'path': u.path,
+                 'size': u.size} for u in rows]

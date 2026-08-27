@@ -1,9 +1,12 @@
 import os
 import shutil
+import logging
 import tempfile
 from pathlib import Path
 from typing import Optional, List, Dict
 from dataclasses import dataclass, field
+
+logger = logging.getLogger('pptmaker.extractors.speaker')
 
 MIN_PHOTO_HEIGHT_CM = 3.0
 MIN_ASPECT_RATIO = 0.4
@@ -595,16 +598,47 @@ def _translate_bio_en(bio: str, api_key: str) -> str:
         return ''
 
 
-def extract_speaker(file_path: str, api_key: str) -> Speaker:
+def extract_speaker(data, api_key: str, filename: Optional[str] = None) -> Speaker:
     """
     Extract speaker info from a file (docx/doc/pptx/ppt/pdf).
     Uses python libraries for text/image extraction, then DeepSeek to structure.
     Binary .doc/.ppt use OLE-based extraction.
+
+    data: file bytes (web upload) or a local path (desktop).
+    filename: original filename, used for extension detection and name
+              inference. Required for bytes input; derived from the path
+              when omitted.
     """
+    if filename is None:
+        if isinstance(data, (str, os.PathLike)):
+            filename = str(data)
+        else:
+            raise ValueError('bytes 输入必须提供 filename 参数')
+
+    # Materialize bytes to a temp file with the right suffix; desktop paths
+    # pass through unchanged. Internal helpers keep working on real paths.
+    _tmp_path = None
+    if isinstance(data, (bytes, bytearray)):
+        _tmp_path = tempfile.NamedTemporaryFile(
+            suffix=Path(filename).suffix.lower(), delete=False).name
+        with open(_tmp_path, 'wb') as f:
+            f.write(bytes(data))
+        file_path = _tmp_path
+    else:
+        if not isinstance(data, (str, os.PathLike)):
+            raise TypeError(f'不支持的文件输入类型: {type(data).__name__}（应为 bytes 或本地路径）')
+        file_path = str(data)
+
+    try:
+        size_hint = len(data) if isinstance(data, (bytes, bytearray)) else os.path.getsize(data)
+    except OSError:
+        size_hint = -1
+    logger.info('开始提取演讲者: %s (%d bytes)', filename, size_hint)
+
     ext = Path(file_path).suffix.lower()
     work_dir = tempfile.mkdtemp(prefix='spk_')
     import re
-    stem = Path(file_path).stem
+    stem = Path(filename).stem
     # Pattern: optional prefix (number/underscore) + Chinese name + suffix
     name_from_file = re.sub(r'^[\d_]+', '', stem)
     name_from_file = re.sub(r'(简介|简历|介绍|资料|个人|履历)$', '', name_from_file)
@@ -741,7 +775,7 @@ def extract_speaker(file_path: str, api_key: str) -> Speaker:
             except Exception:
                 pass
 
-        return Speaker(
+        speaker = Speaker(
             name=data.get('name', ''),
             photo_path=photo_path,
             bio=bio,
@@ -749,5 +783,12 @@ def extract_speaker(file_path: str, api_key: str) -> Speaker:
             institution=institution,
             title='教授',
         )
+        logger.info('演讲者提取完成: %s → %s', filename, speaker.name)
+        return speaker
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
+        if _tmp_path:
+            try:
+                os.unlink(_tmp_path)
+            except OSError:
+                pass

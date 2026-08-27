@@ -1,12 +1,14 @@
 import json
 import os
 import base64
+import logging
 import urllib.request
 import urllib.error
 import urllib.parse
-from typing import List
+from typing import List, Optional
 from dataclasses import dataclass
 
+logger = logging.getLogger('pptmaker.extractors.agenda')
 
 OCR_SPACE_URL = 'https://api.ocr.space/parse/image'
 
@@ -301,48 +303,68 @@ def _parse_agenda_json(result: str) -> List[AgendaItem]:
     return agenda
 
 
-def extract_agenda(file_path: str, api_key: str, ocr_api_key: str = '') -> List[AgendaItem]:
+def extract_agenda(data, api_key: str, ocr_api_key: str = '',
+                   filename: Optional[str] = None) -> List[AgendaItem]:
     """
     Extract agenda from image, PPTX/PPT, DOCX/DOC, or XLSX file.
 
     - Image (jpg/png): compress → OCR.space → DeepSeek
     - PPTX/PPT/DOCX/DOC/XLSX: extract text directly → DeepSeek (no OCR needed)
     - Binary .doc/.ppt fall back to OLE-based extraction
+
+    data: file bytes (web upload) or a local path (desktop).
+    filename: original filename, used for extension detection. Required for
+              bytes input; derived from the path when omitted.
     """
     from utils.deepseek_client import structure_text
+    from extractors.file_input import materialize_file
 
-    ext = os.path.splitext(file_path)[1].lower()
+    if filename is None:
+        if isinstance(data, (str, os.PathLike)):
+            filename = str(data)
+        else:
+            raise ValueError('bytes 输入必须提供 filename 参数用于识别文件格式')
 
-    if ext in ('.jpg', '.jpeg', '.png'):
-        if not ocr_api_key:
-            raise RuntimeError('未配置 OCR.space API Key，请先在注册时填写或在账户设置中更新')
-        raw_text = _ocr_image(file_path, ocr_api_key)
-        result = structure_text(raw_text, OCR_PROMPT, api_key)
-    elif ext in ('.pptx', '.ppt', '.docx', '.doc', '.xlsx'):
-        if ext == '.pptx':
-            raw_text = _extract_text_from_pptx(file_path)
-        elif ext == '.ppt':
-            try:
+    ext = os.path.splitext(filename)[1].lower()
+    try:
+        size_hint = len(data) if isinstance(data, (bytes, bytearray)) else os.path.getsize(data)
+    except OSError:
+        size_hint = -1
+    logger.info('开始提取日程: %s (%s, %d bytes)', filename, ext, size_hint)
+
+    with materialize_file(data, suffix=ext) as file_path:
+        if ext in ('.jpg', '.jpeg', '.png'):
+            if not ocr_api_key:
+                raise RuntimeError('未配置 OCR.space API Key，请先在注册时填写或在账户设置中更新')
+            raw_text = _ocr_image(file_path, ocr_api_key)
+            result = structure_text(raw_text, OCR_PROMPT, api_key)
+        elif ext in ('.pptx', '.ppt', '.docx', '.doc', '.xlsx'):
+            if ext == '.pptx':
                 raw_text = _extract_text_from_pptx(file_path)
-            except Exception:
-                raw_text = ''
-            if not raw_text.strip():
-                raw_text = _extract_text_from_ppt_ole(file_path)
-        elif ext == '.xlsx':
-            raw_text = _extract_text_from_xlsx(file_path)
-        elif ext == '.docx':
-            raw_text = _extract_text_from_docx(file_path)
-        else:  # .doc
-            try:
+            elif ext == '.ppt':
+                try:
+                    raw_text = _extract_text_from_pptx(file_path)
+                except Exception:
+                    raw_text = ''
+                if not raw_text.strip():
+                    raw_text = _extract_text_from_ppt_ole(file_path)
+            elif ext == '.xlsx':
+                raw_text = _extract_text_from_xlsx(file_path)
+            elif ext == '.docx':
                 raw_text = _extract_text_from_docx(file_path)
-            except Exception:
-                raw_text = ''
+            else:  # .doc
+                try:
+                    raw_text = _extract_text_from_docx(file_path)
+                except Exception:
+                    raw_text = ''
+                if not raw_text.strip():
+                    raw_text = _extract_text_from_doc_ole(file_path)
             if not raw_text.strip():
-                raw_text = _extract_text_from_doc_ole(file_path)
-        if not raw_text.strip():
-            raise RuntimeError(f'未能从文件中提取到文字: {file_path}')
-        result = structure_text(raw_text, DOC_PROMPT, api_key)
-    else:
-        raise ValueError(f'不支持的日程文件格式: {ext}（支持 jpg/png/pptx/ppt/docx/doc/xlsx）')
+                raise RuntimeError(f'未能从文件中提取到文字: {filename}')
+            result = structure_text(raw_text, DOC_PROMPT, api_key)
+        else:
+            raise ValueError(f'不支持的日程文件格式: {ext}（支持 jpg/png/pptx/ppt/docx/doc/xlsx）')
 
-    return _parse_agenda_json(result)
+    agenda = _parse_agenda_json(result)
+    logger.info('日程提取完成: %s — 共 %d 个环节', filename, len(agenda))
+    return agenda

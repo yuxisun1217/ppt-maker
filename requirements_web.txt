@@ -1,0 +1,5 @@
+# Web端新增依赖 — 需与 requirements.txt（基础依赖，含 python-pptx）一起安装
+fastapi>=0.115
+uvicorn[standard]>=0.30
+# FastAPI 处理文件上传（UploadFile/Form）所必需
+python-multipart>=0.0.9

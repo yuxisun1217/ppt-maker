@@ -30,3 +30,12 @@ htmlcov/
 # IDE 配置
 .vscode/
 .idea/
+
+# Claude 工作区
+.claude/worktrees/
+
+# 本地环境配置（含数据库密码等敏感信息）
+.env
+
+# 运行日志
+logs/
