@@ -788,7 +788,8 @@ def extract_speaker(data, api_key: str, filename: Optional[str] = None) -> Speak
             '\n'
             f'提示：文件名为「{stem}」，该演讲者的姓名很可能是「{name_from_file}」。\n'
             '如果文本中找不到明确的姓名，请使用提示中的姓名。\n'
-            'name字段只返回姓名（2-3个汉字），不要包含职务和头衔。\n'
+            'name字段必须返回非空姓名：中文姓名返回2-3个汉字，外籍讲者返回英文全名'
+            '（如"Theo M. de Reijke"），不要包含职务和头衔。\n'
             'institution字段从文本中提取医院名称，如"重庆大学附属肿瘤医院"（只保留一个最完整的医院名称）。\n'
             'bio字段返回JSON字符串数组，每项为一行履历。\n'
             '\n'
@@ -812,13 +813,20 @@ def extract_speaker(data, api_key: str, filename: Optional[str] = None) -> Speak
         import json
         data = json.loads(result)
 
+        # 最终姓名：DeepSeek 返回空/null/缺失时回退到文件名推断，
+        # 保证解析结果姓名框不为空（照片文件名、bio_en 判断等均用同一姓名）
+        name = (data.get('name') or '').strip()
+        if not name:
+            name = name_from_file
+            logger.warning('DeepSeek 未返回姓名，回退为文件名推断: %s（文件: %s）',
+                           name, filename)
+
         # Pick the largest qualifying photo (height >= 3cm), copy to session temp dir
         photo_path = ''
         photo_original_path = ''
         qualifying = [(p, os.path.getsize(p)) for p in img_paths if _is_photo(p)]
         if qualifying:
             best = max(qualifying, key=lambda x: x[1])[0]
-            name = data.get('name', name_from_file)
             ext = os.path.splitext(best)[1]
             safe_name = name.replace('/', '_').replace('\\', '_')
             dest = os.path.join(_get_session_photo_dir(), f'{safe_name}{ext}')
@@ -850,14 +858,14 @@ def extract_speaker(data, api_key: str, filename: Optional[str] = None) -> Speak
 
         # English-named speakers get a translated bio for the second page
         bio_en = ''
-        if bio and re.search(r'[A-Za-z]', data.get('name', '')):
+        if bio and re.search(r'[A-Za-z]', name):
             try:
                 bio_en = _translate_bio_en(bio, api_key)
             except Exception:
                 pass
 
         speaker = Speaker(
-            name=data.get('name', ''),
+            name=name,
             photo_path=photo_path,
             bio=bio,
             bio_en=bio_en,
