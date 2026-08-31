@@ -113,8 +113,7 @@ CREATE TABLE uploads (        -- Web 上传文件记录
 
 ### DeepSeek API
 - Endpoint: `https://api.deepseek.com/chat/completions`
-- Model: `deepseek-chat`（支持 vision）
-- 图片格式：Base64 Data URL（`data:image/png;base64,...`）
+- Model: `deepseek-chat`（纯文本；V4 API 不支持 image_url 输入，日程图片走 OCR.space）
 - Response format: `json_object`
 
 ### Web 端点（main_web.py，除登录/注册外均需会话登录）
@@ -123,7 +122,8 @@ CREATE TABLE uploads (        -- Web 上传文件记录
 |------|------|
 | `POST /api/upload` | 多文件上传（multipart，字段 `files`），返回 `{files: [{file_id, filename, size}]}` |
 | `POST /api/template/background` | 上传 .pptx 模版，提取首页/内容页背景图 |
-| `POST /api/parse` | AI 解析日程/演讲者（同步 `def`，跑在线程池）。body：`agenda_file_id` + `speaker_file_ids` + 可选 `api_key`/`ocr_api_key`（账号已配置时优先）。返回 `{agenda: [...], speakers: [{name,title,institution,bio,bio_en,photo}]}`，演讲者照片落盘 web_uploads 并登记 uploads 表，`photo` 为 `{file_id, filename, preview}` 或 null |
+| `POST /api/parse` | AI 解析日程/演讲者（同步 `def`，跑在线程池）。body：`agenda_file_id` + `speaker_file_ids` + 可选 `api_key`/`ocr_api_key`（账号已配置时优先）。返回 `{agenda: [...], speakers: [{name,title,institution,bio,bio_en,photo}]}`，演讲者照片落盘 web_uploads 并登记 uploads 表，`photo` 为 `{file_id, filename, preview, original_file_id, original_filename}` 或 null；照片经头部特写裁剪时，`original_file_id` 指向裁剪前的完整照片（未裁剪为空） |
+| `GET /api/upload/{file_id}` | 下载上传文件（照片等）。校验归属：`user_id != 当前用户` → 403；未知 id / 文件已清理 → 404 |
 | `POST /api/generate` | 创建生成任务。body 在原有字段外新增可选 `agenda_items` / `speakers`（编辑后的数据，`photo_file_id` 指向照片上传）；提供后对应步骤跳过 AI 提取、无需 api_key |
 | `GET /api/status/{task_id}` | 任务进度；`options` 含编辑后的日程/演讲者数据（api_key/ocr_api_key 已剥离） |
 | `GET /api/download/{task_id}` | 下载生成的 PPTX |

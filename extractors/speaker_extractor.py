@@ -51,6 +51,76 @@ def _get_session_photo_dir():
     return _SESSION_PHOTO_DIR
 
 
+def _crop_head_portrait(photo_path: str) -> bool:
+    """照片裁剪为上半身像（头+肩+胸，脸约占画面高度 1/3）。返回是否已裁剪；任何失败保留原图。
+
+    用 OpenCV Haar 级联检测人脸：检测不到人脸、或人脸已占画面 40% 以上
+    （本来就是特写/证件照）时不裁剪；否则围绕人脸裁剪上半身区域。
+    裁剪框一律限制在原图范围内——只裁剪，绝不扩图，也不放大分辨率。
+    """
+    import numpy as np
+    import cv2
+    from PIL import Image
+
+    try:
+        with open(photo_path, 'rb') as f:
+            raw = f.read()
+        # 用 imdecode 而非 imread：避免 Windows 下中文路径无法读取
+        img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            return False
+        h, w = img.shape[:2]
+        cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        gray = cv2.equalizeHist(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
+
+        # 先严格、后宽松两轮检测，尽量找出人脸
+        faces = cascade.detectMultiScale(
+            gray, scaleFactor=1.1, minNeighbors=5,
+            minSize=(int(min(w, h) * 0.06), int(min(w, h) * 0.06)))
+        if len(faces) == 0:
+            faces = cascade.detectMultiScale(
+                gray, scaleFactor=1.05, minNeighbors=3,
+                minSize=(int(min(w, h) * 0.04), int(min(w, h) * 0.04)))
+        if len(faces) == 0:
+            return False
+        # 取面积最大的人脸（通常是照片主体）
+        fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])
+
+        # 人脸已占画面高度 40% 以上 → 已是特写，不裁剪
+        if fh >= 0.4 * h:
+            return False
+
+        # 上半身区域：以人脸为中心，上留头发、下至胸肩、两侧含肩
+        # （高度 3.0×人脸高 → 脸约占 1/3；宽度 2.4×人脸宽 ≈ 1.4×头宽，含肩）
+        cx = fx + fw / 2.0
+        x0 = int(cx - 1.2 * fw)
+        x1 = int(cx + 1.2 * fw)
+        y0 = int(fy - 0.6 * fh)
+        y1 = int(fy + 2.4 * fh)
+        # 限制在原图范围内——只裁剪，绝不扩图
+        x0 = max(0, x0)
+        y0 = max(0, y0)
+        x1 = min(w, x1)
+        y1 = min(h, y1)
+        if x1 <= x0 or y1 <= y0:
+            return False
+
+        with Image.open(photo_path) as im:
+            im.load()
+            fmt = im.format or 'JPEG'
+            cropped = im.crop((x0, y0, x1, y1))
+        # 按原格式、原始分辨率保存，不放大；JPEG 用高质量减少重编码损失
+        save_kwargs = {'quality': 95, 'subsampling': 0} if fmt == 'JPEG' else {}
+        cropped.save(photo_path, format=fmt, **save_kwargs)
+        logger.info('照片已裁剪为上半身: %dx%d → (%d,%d,%d,%d)，人脸框 (%d,%d,%d,%d)',
+                    w, h, x0, y0, x1, y1, fx, fy, fw, fh)
+        return True
+    except Exception as e:
+        logger.warning('头像裁剪失败，保留原图: %s', e)
+        return False
+
+
 @dataclass
 class Speaker:
     name: str
@@ -59,6 +129,7 @@ class Speaker:
     bio_en: str = ''
     institution: str = ''
     title: str = ''
+    photo_original_path: str = ''  # 裁剪前的完整照片（未裁剪时为空，等于 photo_path）
 
 
 def _read_zip_entry_raw(zf, name):
@@ -743,6 +814,7 @@ def extract_speaker(data, api_key: str, filename: Optional[str] = None) -> Speak
 
         # Pick the largest qualifying photo (height >= 3cm), copy to session temp dir
         photo_path = ''
+        photo_original_path = ''
         qualifying = [(p, os.path.getsize(p)) for p in img_paths if _is_photo(p)]
         if qualifying:
             best = max(qualifying, key=lambda x: x[1])[0]
@@ -752,6 +824,15 @@ def extract_speaker(data, api_key: str, filename: Optional[str] = None) -> Speak
             dest = os.path.join(_get_session_photo_dir(), f'{safe_name}{ext}')
             shutil.copy2(best, dest)
             photo_path = dest
+            # 照片裁剪为上半身像（人脸过小才裁；失败保留原图，不影响提取流程）
+            try:
+                if _crop_head_portrait(dest):
+                    # 裁剪成功时另存一份完整原图，供「查看完整照片」
+                    photo_original_path = os.path.join(
+                        _get_session_photo_dir(), f'{safe_name}_完整照片{ext}')
+                    shutil.copy2(best, photo_original_path)
+            except Exception:
+                pass
 
         # Resolve institution full name if it doesn't end with 医院
         institution = data.get('institution', '')
@@ -782,6 +863,7 @@ def extract_speaker(data, api_key: str, filename: Optional[str] = None) -> Speak
             bio_en=bio_en,
             institution=institution,
             title='教授',
+            photo_original_path=photo_original_path,
         )
         logger.info('演讲者提取完成: %s → %s', filename, speaker.name)
         return speaker

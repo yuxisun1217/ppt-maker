@@ -335,7 +335,7 @@ def get_upload(file_id: str) -> Optional[dict]:
     with SessionLocal() as s:
         u = s.get(Upload, file_id)
         return {'file_id': u.id, 'filename': u.filename, 'path': u.path,
-                'size': u.size} if u else None
+                'size': u.size, 'user_id': u.user_id} if u else None
 
 
 def list_uploads() -> list:

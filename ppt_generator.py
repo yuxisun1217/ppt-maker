@@ -17,17 +17,21 @@ CFG_16_9 = {
     'width': Inches(13.333),
     'height': Inches(7.5),
     'divider': {
-        'title_top': Inches(3.0), 'title_h': Inches(0.8),
+        # 嘉宾姓名第一行约在页面中线（页面高 7.5"，中线 3.75"；
+        # 文本框上边距 0.05"，speaker_top 3.7" → 文字起于 ≈3.75"）
+        'title_top': Inches(2.5), 'title_h': Inches(0.8),
         'title_sz': Pt(40), 'title_color': TEXT_COLOR,
-        'speaker_top': Inches(4.2), 'speaker_h': Inches(0.6),
+        'speaker_top': Inches(3.7), 'speaker_h': Inches(0.6),
         'speaker_sz': Pt(32), 'speaker_color': TEXT_COLOR,
     },
     'bio_photo': {
         'role_top': Inches(0.8), 'role_h': Inches(0.7), 'role_sz': Pt(36),
-        'photo_left': Inches(0.8), 'photo_top': Inches(1.1),
+        # 照片上边沿与右侧履历文本框上沿对齐（bio_top = 1.5"）；
+        # 下方姓名/机构说明文字随照片一起下移（name_top 保持照片下沿 + 0.14" 间距）
+        'photo_left': Inches(0.8), 'photo_top': Inches(1.5),
         'photo_w': Inches(2.6), 'photo_h': Inches(3.8),
-        'name_top': Inches(5.0), 'name_sz': Pt(18),
-        'inst_top': Inches(5.4), 'inst_sz': Pt(14),
+        'name_top': Inches(5.4), 'name_sz': Pt(18),
+        'inst_top': Inches(5.8), 'inst_sz': Pt(14),
         'bio_left': Inches(4.0), 'bio_top': Inches(1.5),
         'bio_w': Inches(8.5), 'bio_h': Inches(4.85), 'bio_sz': Pt(17),
     },
@@ -357,6 +361,7 @@ def _make_bio(prs, content_bg, cfg, speaker, role_label='', en=False):
             # Detect face for smart centering
             face_cx = pw / 2
             face_cy = ph * 0.4
+            face_found = False
             try:
                 import cv2, numpy as np
                 pil_img = img.convert('RGB')
@@ -369,21 +374,35 @@ def _make_bio(prs, content_bg, cfg, speaker, role_label='', en=False):
                     x, y, fw, fh = max(faces, key=lambda f: f[2] * f[3])
                     face_cx = x + fw / 2
                     face_cy = y + fh / 2
+                    face_found = True
             except Exception:
                 pass
 
             # Calculate visible region centered on face, constrained to image bounds
-            if w_h_ratio < TARGET_RATIO:
-                # Too tall: keep full width, crop height
-                target_w = pw
-                target_h = int(pw / TARGET_RATIO)
-            else:
-                # Too wide: keep full height, crop width
-                target_w = int(ph * TARGET_RATIO)
-                target_h = ph
+            # 全身照 → 上半身显示裁剪；区域放不下时退回原比例适配（保证不出界）
+            upper_ok = False
+            if face_found and fh < 0.4 * ph:
+                # 可见高度 4.5×人脸高（脸约占 22%，上留头发、下至胸肩）
+                target_h = int(4.5 * fh)
+                target_w = int(target_h * TARGET_RATIO)
+                if target_w <= pw and target_h <= ph:
+                    anchor_x = face_cx - target_w / 2
+                    anchor_y = y - 1.2 * fh
+                    upper_ok = True
+            if not upper_ok:
+                if w_h_ratio < TARGET_RATIO:
+                    # Too tall: keep full width, crop height
+                    target_w = pw
+                    target_h = int(pw / TARGET_RATIO)
+                else:
+                    # Too wide: keep full height, crop width
+                    target_w = int(ph * TARGET_RATIO)
+                    target_h = ph
+                anchor_x = face_cx - target_w / 2
+                anchor_y = face_cy - target_h * 0.4
 
-            vis_l = max(0, min(int(face_cx - target_w / 2), pw - target_w))
-            vis_t = max(0, min(int(face_cy - target_h * 0.4), ph - target_h))
+            vis_l = max(0, min(int(anchor_x), pw - target_w))
+            vis_t = max(0, min(int(anchor_y), ph - target_h))
             vis_r = vis_l + target_w
             vis_b = vis_t + target_h
 

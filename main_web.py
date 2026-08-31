@@ -336,6 +336,19 @@ async def upload(files: list[UploadFile] = File(...),
     return {'files': saved}
 
 
+@app.get("/api/upload/{file_id}")
+async def get_upload_file(file_id: str, user: dict = Depends(require_user)):
+    """取回上传文件的原始内容（用于「查看完整照片」等场景），仅限文件所有者。"""
+    rec = db.get_upload(file_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail='未知文件ID')
+    if rec.get('user_id') is None or rec.get('user_id') != user['id']:
+        raise HTTPException(status_code=403, detail='无权访问该文件')
+    if not os.path.exists(rec['path']):
+        raise HTTPException(status_code=404, detail='文件不存在（可能已被清理）')
+    return FileResponse(rec['path'], filename=rec['filename'])
+
+
 _MAX_TEMPLATE_SIZE = 100 * 1024 * 1024
 
 # 演讲者照片可能的扩展名 → dataURL MIME（extract_speaker 可产出 jpg/png/gif/bmp）
@@ -426,29 +439,48 @@ def parse_materials(req: ParseRequest, user: dict = Depends(require_user)):
 
         # 照片落盘持久化（extract_speaker 的照片在进程级临时目录，不持久化）
         photo = None
-        if sp.photo_path and os.path.exists(sp.photo_path):
-            ext = Path(sp.photo_path).suffix.lower()
+
+        def _persist_photo(src_path, label):
+            """照片落盘并登记 uploads 表。返回 (file_id, filename, mime, bytes)，失败返回 None。"""
+            ext = Path(src_path).suffix.lower()
             if ext not in _PHOTO_MIME:
                 ext = '.png'
+            mime = _PHOTO_MIME[ext]
             try:
-                with open(sp.photo_path, 'rb') as f:
+                with open(src_path, 'rb') as f:
                     img = f.read()
             except OSError:
-                img = b''
-            if img:
-                file_id = uuid.uuid4().hex
-                dest = UPLOAD_DIR / ('%s.%s' % (file_id, ext.lstrip('.')))
-                with dest.open('wb') as f:
-                    f.write(img)
-                filename = '%s_照片%s' % (sp.name or '演讲者', ext)
-                db.create_upload(file_id, filename, str(dest),
-                                 dest.stat().st_size, user_id=user['id'])
+                return None
+            if not img:
+                return None
+            file_id = uuid.uuid4().hex
+            dest = UPLOAD_DIR / ('%s.%s' % (file_id, ext.lstrip('.')))
+            with dest.open('wb') as f:
+                f.write(img)
+            filename = '%s_%s%s' % (sp.name or '演讲者', label, ext)
+            db.create_upload(file_id, filename, str(dest),
+                             dest.stat().st_size, user_id=user['id'])
+            return file_id, filename, mime, img
+
+        if sp.photo_path and os.path.exists(sp.photo_path):
+            saved = _persist_photo(sp.photo_path, '照片')
+            if saved:
+                file_id, filename, mime, img = saved
                 photo = {
                     'file_id': file_id,
                     'filename': filename,
                     'preview': 'data:%s;base64,%s' % (
-                        _PHOTO_MIME[ext], base64.b64encode(img).decode()),
+                        mime, base64.b64encode(img).decode()),
+                    'original_file_id': '',
+                    'original_filename': '',
                 }
+                # 裁剪前的完整照片一并落盘，前端点头像可查看
+                orig = getattr(sp, 'photo_original_path', '') or ''
+                if orig and orig != sp.photo_path and os.path.exists(orig):
+                    original = _persist_photo(orig, '完整照片')
+                    if original:
+                        photo['original_file_id'] = original[0]
+                        photo['original_filename'] = original[1]
         speakers.append({
             'name': sp.name,
             'title': sp.title,

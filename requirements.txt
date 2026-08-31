@@ -1,5 +1,7 @@
 python-pptx>=1.0.2
 Pillow>=11.0.0
+# 演讲者照片头部特写裁剪（Haar 人脸检测）
+opencv-python-headless>=4.8
 python-docx>=1.0.0
 openpyxl>=3.1.0
 olefile>=0.47

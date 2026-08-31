@@ -36,6 +36,7 @@
 - [ ] 统一管道：文件 → PDF → DeepSeek Vision → Speaker 对象
 - [ ] 内嵌图片提取（python-docx / python-pptx）
 - [ ] 照片与 Speaker 关联存储
+- [x] 照片提取：全身照裁剪为头部特写（OpenCV Haar 人脸检测定位，人脸占画面 40% 以上视为已是特写不裁；只裁剪不扩图，失败保留原图）
 
 ### 2.2 日程提取 `extractors/agenda_extractor.py`
 - [ ] 图片 → DeepSeek Vision → List[AgendaItem]
@@ -130,6 +131,7 @@
 - [x] 管理员用户管理页 `web/admin.html`：账户列表、新建、重置密码、授予/取消管理员、删除（主页对管理员显示入口）
 - [x] 背景槽位支持上传 .pptx 模版：`POST /api/template/background` 提取首页/内容页背景（`extractors/ppt_background.py`，zip+xml 固定代码），两槽位自动填充，图片直传方式保留
 - [x] 步骤 2 资料解析与编辑：手动「解析资料」按钮 → `POST /api/parse`（AI 解析日程/演讲者，可编辑卡片增删改、更换照片）；生成时携带编辑后数据（`/api/generate` 可选 `agenda_items`/`speakers`）跳过 AI 提取、无需 Key；文件变更/重置时解析结果失效
+- [x] 解析结果点击头像查看照片：照片裁剪为头部特写时另存完整原图（`photo.original_file_id`），点击缩略图弹灯箱默认显示裁剪后照片，「查看完整照片」按钮手动切换原图（`GET /api/upload/{file_id}`，带归属校验）
 
 ---
 
