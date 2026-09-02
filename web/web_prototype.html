@@ -76,7 +76,7 @@ tailwind.config = {
         新建任务
       </button>
       <span id="backend-status" class="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">检测后端…</span>
-      <button type="button" id="btn-account" class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm text-gray-500 font-medium hover:bg-gray-100 hover:text-gray-700 transition cursor-pointer">
+      <button type="button" id="btn-account" class="hidden inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm text-gray-500 font-medium hover:bg-gray-100 hover:text-gray-700 transition cursor-pointer">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
         账户设置
       </button>
@@ -92,6 +92,16 @@ tailwind.config = {
     </div>
   </div>
 </header>
+
+<!-- ======================= 共享 Key 缺失警告（登录后检查） ======================= -->
+<div id="shared-key-warning" class="hidden sticky top-16 z-30">
+  <div class="max-w-[1280px] mx-auto px-6">
+    <div class="mt-2 flex items-start gap-2.5 rounded-xl bg-orange-50 border border-orange-300 px-4 py-2.5">
+      <svg class="w-4 h-4 mt-0.5 shrink-0 text-orange-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+      <p id="shared-key-warning-text" class="flex-1 text-xs text-orange-700 leading-5 font-medium"></p>
+    </div>
+  </div>
+</div>
 
 <!-- ======================= 主体 ======================= -->
 <div class="max-w-[1280px] mx-auto px-6 py-6 flex gap-6 items-start">
@@ -780,7 +790,7 @@ tailwind.config = {
     try {
       res = await authFetch(apiBase() + path, options);
     } catch (e) {
-      throw new Error('无法连接后端服务（' + apiBase() + '）。请先启动：python -m uvicorn main_web:app --port 8000，或到「账户设置」修改后端地址');
+      throw new Error('无法连接后端服务（' + apiBase() + '）。请先启动：python -m uvicorn main_web:app --port 8000');
     }
     if (!res.ok) {
       var detail = '';
@@ -803,7 +813,7 @@ tailwind.config = {
     } catch (e) {
       badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>后端未连接';
       badge.className = 'inline-flex items-center gap-1 text-[11px] text-red-500 bg-red-50 border border-red-200 rounded-full px-2.5 py-1';
-      toast('error', '无法连接后端 ' + apiBase() + '，请先启动：python -m uvicorn main_web:app --port 8000，或到「账户设置」修改后端地址', 8000);
+      toast('error', '无法连接后端 ' + apiBase() + '，请先启动：python -m uvicorn main_web:app --port 8000', 8000);
     }
   }
 
@@ -999,12 +1009,9 @@ tailwind.config = {
     if (state.parsing) return;
     if (state.uploading > 0) { toast('error', '文件正在上传，请稍候…'); return; }
     if (!state.agenda) { toast('error', '请先上传会议日程文件'); return; }
-    var apiKey = (localStorage.getItem(LS.apiKey) || '').trim();
-    if (!apiKey && !state.accountKeyConfigured) {
-      toast('error', '请先填写 DeepSeek API Key：点击右上角「账户设置」', 7000);
-      return;
-    }
+    // Key 由服务端解析：账号个人 Key > 本机 Key > 管理员共享 Key，无需前端拦截
     var seq = parseSeq;
+    var apiKey = (localStorage.getItem(LS.apiKey) || '').trim();
     state.parsing = true;
     state.parsed = null;
     renderParsed();
@@ -1140,8 +1147,8 @@ tailwind.config = {
         speakerPhotoHtml(sp, idx) +
         '<div class="flex-1 min-w-0 space-y-2">' +
           '<div class="flex gap-2">' +
-            '<input data-sp="' + idx + '" data-field="name" value="' + esc(sp.name) + '" placeholder="姓名" class="' + EDIT_CLS + ' flex-1">' +
-            '<input data-sp="' + idx + '" data-field="title" value="' + esc(sp.title) + '" placeholder="职称" class="' + EDIT_CLS + ' w-20">' +
+            '<input data-sp="' + idx + '" data-field="name" value="' + esc(sp.name) + '" placeholder="姓名" class="' + EDIT_CLS + '" style="width:15ch;flex:none">' +
+            '<input data-sp="' + idx + '" data-field="title" value="' + esc(sp.title) + '" placeholder="职称" class="' + EDIT_CLS + '" style="width:5rem;flex:none">' +
           '</div>' +
           '<input data-sp="' + idx + '" data-field="institution" value="' + esc(sp.institution) + '" placeholder="机构" class="' + EDIT_CLS + ' w-full">' +
         '</div>' +
@@ -1343,15 +1350,10 @@ tailwind.config = {
     if (state.generating) return;
     if (state.uploading > 0) { toast('info', '文件正在上传，请稍候…'); return; }
     if (!state.agenda) { toast('error', '请先上传会议日程文件'); setStep(1); return; }
-    var apiKey = (localStorage.getItem(LS.apiKey) || '').trim();
     var usingParsed = !!state.parsed;
-    // 账号已配置 Key 时（服务端按账号读取），本机未填也放行；
+    var apiKey = (localStorage.getItem(LS.apiKey) || '').trim();
+    // Key 由服务端解析：账号个人 Key > 本机 Key > 管理员共享 Key；
     // 使用编辑后的数据生成时无需 Key（跳过 AI 解析）
-    if (!usingParsed && !apiKey && !state.accountKeyConfigured) {
-      toast('error', '请先填写 DeepSeek API Key：点击右上角「账户设置」', 7000);
-      setStep(1);
-      return;
-    }
 
     var p = getParams();
     var body = {
@@ -1650,12 +1652,41 @@ tailwind.config = {
       $('user-name').textContent = u.username || '';
       $('user-avatar').textContent = (u.username || '?').slice(0, 1);
       $('user-role').textContent = u.is_admin ? '管理员' : '普通用户';
-      if (u.is_admin) $('link-admin').classList.remove('hidden');
-      if (!u.api_key_configured) {
-        toast('info', '账户尚未配置 DeepSeek API Key，可到「账户设置」填写', 6000);
+      if (u.is_admin) {
+        $('link-admin').classList.remove('hidden');
+        $('btn-account').classList.remove('hidden'); // 「账户设置」仅管理员可见
       }
+      if (!u.api_key_configured) {
+        if (u.is_admin) {
+          toast('info', '账户尚未配置 DeepSeek API Key，可到「账户设置」填写', 6000);
+        } else {
+          toast('info', '账户未配置个人 DeepSeek API Key，将使用管理员配置的共享 Key（如已配置）', 6000);
+        }
+      }
+      checkSharedKeys(u);
     } catch (e) {
       // 后端未启动时不强制跳转，交给连通性检测提示
+    }
+  }
+
+  // ---------------- 共享 Key 缺失检查（所有用户登录后） ----------------
+  async function checkSharedKeys(u) {
+    try {
+      var d = await api('/api/settings/shared-keys-status');
+      var missing = [];
+      if (!d.deepseek_configured) missing.push('共享 DeepSeek API Key');
+      if (!d.ocr_configured) missing.push('共享 OCR.space Key');
+      if (!missing.length) {
+        $('shared-key-warning').classList.add('hidden');
+        return;
+      }
+      var tail = (u && u.is_admin)
+        ? '，请前往「<a href="admin.html" class="underline text-orange-700 hover:text-orange-900">用户管理</a>」页配置'
+        : '，请联系管理员添加后使用';
+      $('shared-key-warning-text').innerHTML = '⚠ ' + esc(missing.join(' 与 ')) + ' 未配置' + tail;
+      $('shared-key-warning').classList.remove('hidden');
+    } catch (e) {
+      // 后端不可达等：不打扰，由连通性检测提示
     }
   }
 
@@ -1746,8 +1777,7 @@ tailwind.config = {
   function commonGuard() {
     if (state.uploading > 0) return '文件正在上传，请稍候…';
     if (!state.agenda) return '请先上传会议日程文件';
-    // 已解析（编辑数据生成跳过 AI）时无需 Key
-    if (!state.parsed && !(localStorage.getItem(LS.apiKey) || '').trim() && !state.accountKeyConfigured) return '请先在「账户设置」中填写 DeepSeek API Key';
+    // Key 由服务端解析（个人 > 本机 > 管理员共享），前端不拦截
     return null;
   }
   navGuard('nav-w1-next', commonGuard);

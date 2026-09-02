@@ -17,7 +17,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-from database.models import Base, Speaker, Task, Upload, User
+from database.models import Base, Speaker, SystemSetting, Task, Upload, User
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
@@ -343,3 +343,41 @@ def list_uploads() -> list:
         rows = s.scalars(select(Upload).order_by(Upload.created_at)).all()
         return [{'file_id': u.id, 'filename': u.filename, 'path': u.path,
                  'size': u.size} for u in rows]
+
+
+# ---------------------------------------------------------------------------
+# Shared API keys — 全体用户共享使用、仅管理员可见可改，密文落库
+# ---------------------------------------------------------------------------
+
+_SHARED_KEY_DEEPSEEK = 'shared_deepseek_api_key'
+_SHARED_KEY_OCR = 'shared_ocr_api_key'
+
+
+def get_shared_keys() -> dict:
+    """读取共享 API Key（解密）。返回 {'api_key': str, 'ocr_api_key': str}。"""
+    from utils.crypto import decrypt_secret
+    with SessionLocal() as s:
+        rows = {r.key: r.value for r in s.scalars(select(SystemSetting))}
+    return {
+        'api_key': decrypt_secret(rows.get(_SHARED_KEY_DEEPSEEK, '')),
+        'ocr_api_key': decrypt_secret(rows.get(_SHARED_KEY_OCR, '')),
+    }
+
+
+def set_shared_keys(api_key: Optional[str] = None,
+                    ocr_api_key: Optional[str] = None) -> dict:
+    """更新共享 API Key（加密后落库）。None=保持不变，空串=清空。返回更新后的值。"""
+    from utils.crypto import encrypt_secret
+    with SessionLocal() as s:
+        for key, val in ((_SHARED_KEY_DEEPSEEK, api_key),
+                         (_SHARED_KEY_OCR, ocr_api_key)):
+            if val is None:
+                continue
+            row = s.get(SystemSetting, key)
+            cipher = encrypt_secret((val or '').strip())
+            if row is None:
+                s.add(SystemSetting(key=key, value=cipher))
+            else:
+                row.value = cipher
+        s.commit()
+    return get_shared_keys()

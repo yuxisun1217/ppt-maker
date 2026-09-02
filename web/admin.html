@@ -65,6 +65,45 @@ tailwind.config = {
 <!-- ======================= 用户管理 ======================= -->
 <main class="max-w-[960px] mx-auto px-6 py-8 space-y-5">
 
+  <!-- 共享 API Key（仅管理员可见，数据库加密保存） -->
+  <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6">
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+      <div>
+        <h3 class="text-sm font-semibold text-gray-800">共享 API Key</h3>
+        <p class="text-xs text-gray-400 mt-0.5">全体用户共享使用（用户未配置个人 Key 时自动使用）；仅管理员可见、可修改，数据库中加密保存</p>
+      </div>
+      <div class="flex items-center gap-2" id="shared-key-state"></div>
+    </div>
+    <div id="shared-key-error" class="hidden mb-3 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3.5 py-2 text-xs text-red-600">
+      <span class="font-bold shrink-0">✕</span><span id="shared-key-error-text" class="flex-1 leading-5"></span>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-3 items-start">
+      <div>
+        <label for="shared-deepseek" class="text-xs font-medium text-gray-600">DeepSeek API Key</label>
+        <div class="relative mt-1.5">
+          <input type="password" id="shared-deepseek" placeholder="必填"
+                 class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-medical-200 focus:border-medical-300">
+          <button type="button" data-key-toggle="shared-deepseek" class="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-medical-600 hover:text-medical-700 font-medium cursor-pointer">显示</button>
+        </div>
+      </div>
+      <div>
+        <label for="shared-ocr" class="text-xs font-medium text-gray-600">OCR.space API Key</label>
+        <div class="relative mt-1.5">
+          <input type="password" id="shared-ocr" placeholder="必填"
+                 class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-medical-200 focus:border-medical-300">
+          <button type="button" data-key-toggle="shared-ocr" class="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-medical-600 hover:text-medical-700 font-medium cursor-pointer">显示</button>
+        </div>
+      </div>
+    </div>
+    <div class="mt-4 flex items-center gap-3">
+      <button type="button" id="btn-save-shared" class="inline-flex items-center gap-1.5 rounded-lg bg-medical-500 hover:bg-medical-600 text-white px-4 py-2 text-sm font-medium transition cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        保存
+      </button>
+      <span class="text-[11px] text-gray-400">两项均为必填；保存后立即对全体用户生效，任一未配置时所有用户登录后会收到警告。</span>
+    </div>
+  </div>
+
   <div class="flex items-center justify-between flex-wrap gap-3">
     <div class="flex items-center gap-2.5">
       <div class="w-9 h-9 rounded-lg bg-medical-50 flex items-center justify-center">
@@ -316,6 +355,60 @@ tailwind.config = {
     }
   });
 
+  // ---------------- 共享 API Key ----------------
+  function renderSharedState(d) {
+    function chip(ok, label) {
+      return '<span class="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 ' +
+        (ok ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50') + '">' +
+        label + (ok ? '已配置' : '未配置（必填）') + '</span>';
+    }
+    $('shared-key-state').innerHTML =
+      chip(d.deepseek_configured, 'DeepSeek ') + chip(d.ocr_configured, 'OCR ');
+  }
+  function showSharedError(msg) {
+    $('shared-key-error-text').textContent = msg;
+    $('shared-key-error').classList.remove('hidden');
+  }
+  function hideSharedError() {
+    $('shared-key-error').classList.add('hidden');
+  }
+  async function loadSharedKeys() {
+    try {
+      var d = await api('/api/settings/shared-keys');
+      $('shared-deepseek').value = d.api_key || '';
+      $('shared-ocr').value = d.ocr_api_key || '';
+      renderSharedState(d);
+    } catch (e) {
+      showSharedError('加载共享 Key 失败：' + e.message);
+    }
+  }
+  $('btn-save-shared').addEventListener('click', async function () {
+    hideSharedError();
+    try {
+      var d = await api('/api/settings/shared-keys', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: $('shared-deepseek').value.trim(),
+          ocr_api_key: $('shared-ocr').value.trim(),
+        }),
+      });
+      renderSharedState(d);
+      toast('success', '共享 API Key 已保存，对全体用户生效');
+    } catch (e) {
+      showSharedError(e.message);
+    }
+  });
+  document.addEventListener('click', function (e) {
+    var k = e.target.closest ? e.target.closest('[data-key-toggle]') : null;
+    if (!k) return;
+    var input = $(k.getAttribute('data-key-toggle'));
+    if (!input) return;
+    var show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    k.textContent = show ? '隐藏' : '显示';
+  });
+
   // ---------------- 退出登录 ----------------
   $('btn-logout').addEventListener('click', async function () {
     try { await authFetch(apiBase() + '/api/logout', { method: 'POST' }); } catch (e) {}
@@ -335,6 +428,7 @@ tailwind.config = {
       }
       $('me-name').textContent = me.username + '（管理员）';
       loadUsers();
+      loadSharedKeys();
     } catch (e) {
       if (e.status === 401) {
         window.location.href = 'login.html';

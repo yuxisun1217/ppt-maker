@@ -51,11 +51,72 @@ def _get_session_photo_dir():
     return _SESSION_PHOTO_DIR
 
 
+def detect_face_strict(img_bgr):
+    """多级联严格投票人脸检测，返回唯一确认的人脸框 (x, y, w, h)，否则 None。
+
+    frontal 与 alt2 两个级联必须在同一区域（重叠 >= 50%）且都以高置信度
+    （minNeighbors >= 5）检出人脸，人脸中心还须位于画面高度 68% 之上
+    （排除多人合照中画面下方的人物、以及衣服纹理等单级联误检）。
+    确认到 0 个或 >= 2 个人脸（合照）时返回 None——宁可保留原图也不裁错。
+    """
+    import cv2
+
+    h, w = img_bgr.shape[:2]
+    gray = cv2.equalizeHist(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY))
+    cascades = {
+        'frontal': cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'),
+        'alt2': cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_frontalface_alt2.xml'),
+    }
+
+    detections = []
+    for name, cascade in cascades.items():
+        # 严格、宽松两轮扫描；同区域两轮的结果在聚类时合并（取最高 mn）
+        for scale_factor, min_neighbors in ((1.1, 5), (1.05, 3)):
+            detections.extend(
+                (x, y, fw, fh, min_neighbors, name)
+                for (x, y, fw, fh) in cascade.detectMultiScale(
+                    gray, scaleFactor=scale_factor, minNeighbors=min_neighbors,
+                    minSize=(int(min(w, h) * 0.06),) * 2))
+
+    # 聚类：重叠 >= 50% 的框视为同一人脸；簇框取最大者，每级联保留最高 mn
+    clusters = []  # [{'box': (x, y, w, h), 'votes': {cascade: max_mn}}]
+    for x, y, fw, fh, mn, name in detections:
+        cluster = None
+        for c in clusters:
+            bx, by, bw, bh = c['box']
+            inter_w = max(0, min(x + fw, bx + bw) - max(x, bx))
+            inter_h = max(0, min(y + fh, by + bh) - max(y, by))
+            if inter_w * inter_h >= 0.5 * min(fw * fh, bw * bh):
+                cluster = c
+                break
+        if cluster is None:
+            clusters.append({'box': (x, y, fw, fh), 'votes': {name: mn}})
+        else:
+            bx, by, bw, bh = cluster['box']
+            if fw * fh > bw * bh:
+                cluster['box'] = (x, y, fw, fh)
+            cluster['votes'][name] = max(cluster['votes'].get(name, 0), mn)
+
+    confirmed = []
+    for c in clusters:
+        if (c['votes'].get('frontal', 0) >= 5
+                and c['votes'].get('alt2', 0) >= 5):
+            x, y, fw, fh = c['box']
+            if y + fh / 2 <= 0.68 * h:
+                confirmed.append((x, y, fw, fh))
+    if len(confirmed) != 1:
+        return None
+    return confirmed[0]
+
+
 def _crop_head_portrait(photo_path: str) -> bool:
     """照片裁剪为上半身像（头+肩+胸，脸约占画面高度 1/3）。返回是否已裁剪；任何失败保留原图。
 
-    用 OpenCV Haar 级联检测人脸：检测不到人脸、或人脸已占画面 40% 以上
-    （本来就是特写/证件照）时不裁剪；否则围绕人脸裁剪上半身区域。
+    用多级联严格投票（detect_face_strict）确认唯一人脸：检测不到、
+    多人合照、或人脸已占画面 40% 以上（本来就是特写/证件照）时不裁剪；
+    否则围绕确认的人脸裁剪上半身区域。
     裁剪框一律限制在原图范围内——只裁剪，绝不扩图，也不放大分辨率。
     """
     import numpy as np
@@ -70,22 +131,10 @@ def _crop_head_portrait(photo_path: str) -> bool:
         if img is None:
             return False
         h, w = img.shape[:2]
-        cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        gray = cv2.equalizeHist(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
-
-        # 先严格、后宽松两轮检测，尽量找出人脸
-        faces = cascade.detectMultiScale(
-            gray, scaleFactor=1.1, minNeighbors=5,
-            minSize=(int(min(w, h) * 0.06), int(min(w, h) * 0.06)))
-        if len(faces) == 0:
-            faces = cascade.detectMultiScale(
-                gray, scaleFactor=1.05, minNeighbors=3,
-                minSize=(int(min(w, h) * 0.04), int(min(w, h) * 0.04)))
-        if len(faces) == 0:
+        face = detect_face_strict(img)
+        if face is None:
             return False
-        # 取面积最大的人脸（通常是照片主体）
-        fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])
+        fx, fy, fw, fh = face
 
         # 人脸已占画面高度 40% 以上 → 已是特写，不裁剪
         if fh >= 0.4 * h:

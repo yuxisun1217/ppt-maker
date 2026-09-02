@@ -101,7 +101,7 @@
 
 ### 6.1 后端骨架
 - [x] `main_web.py` — FastAPI + CORS + 上传/生成/状态/下载端点
-- [x] `requirements_web.txt` — fastapi / uvicorn / python-multipart
+- [x] Web 依赖（fastapi / uvicorn / python-multipart）已合并入 `requirements.txt`（原 `requirements_web.txt` 已删除）
 - [x] `web/web_prototype.html` — 前端原型（待接入 API）
 
 ### 6.2 核心逻辑迁移

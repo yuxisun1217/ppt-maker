@@ -88,3 +88,14 @@ class Upload(Base):
         DateTime, server_default=func.now(), onupdate=func.now())
 
     user: Mapped[Optional['User']] = relationship(back_populates='uploads')
+
+
+class SystemSetting(Base):
+    """全局系统设置（key-value）。共享 API Key 经 utils.crypto 加密后存 value。"""
+
+    __tablename__ = 'system_settings'
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, default='')
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now())

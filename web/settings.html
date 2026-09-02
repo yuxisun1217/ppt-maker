@@ -69,7 +69,7 @@ tailwind.config = {
         </div>
         <div>
           <h2 class="text-[15px] font-semibold text-gray-800">账户设置</h2>
-          <p class="text-xs text-gray-400 mt-0.5">DeepSeek API Key 必填 · OCR.space Key 可选（日程为图片时需要）</p>
+          <p class="text-xs text-gray-400 mt-0.5">DeepSeek API Key 建议填写 · OCR.space Key 可选（日程为图片时需要）· 留空时自动使用管理员配置的共享 Key</p>
         </div>
       </div>
       <span id="backend-status" class="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1">检测后端…</span>
@@ -257,7 +257,7 @@ tailwind.config = {
     persist();
     var synced = await saveToAccount();
     if (!$('input-api-key').value.trim()) {
-      toast('info', '已保存，但 DeepSeek API Key 仍为空，生成前需要填写', 6000);
+      toast('info', '已保存，但 DeepSeek API Key 为空——若管理员已配置共享 Key 仍可正常使用，否则生成前需要填写', 6000);
     } else if (synced) {
       toast('success', '设置已保存到你的账户与本机浏览器');
     } else {

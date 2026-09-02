@@ -12,3 +12,10 @@ SQLAlchemy>=2.0
 alembic>=1.13
 python-dotenv>=1.0
 psycopg2-binary>=2.9
+# 共享 API Key 数据库加密存储（Fernet 对称加密）
+cryptography>=42.0
+# Web 端依赖（原 requirements_web.txt，已合并至此文件）
+fastapi>=0.115
+uvicorn[standard]>=0.30
+# FastAPI 处理文件上传（UploadFile/Form）所必需
+python-multipart>=0.0.9

@@ -148,7 +148,7 @@ def run_generation_task(task_id: str, options: dict):
                         task_id, len(agenda_items))
         else:
             if not api_key:
-                raise RuntimeError('缺少 DeepSeek API Key，请在请求中提供 api_key')
+                raise RuntimeError('缺少 DeepSeek API Key：请到「账户设置」配置个人 Key，或由管理员配置共享 Key')
             agenda_rec = db.get_upload(options.get('agenda_file_id', '') or '')
             if agenda_rec is None:
                 raise ValueError('agenda_file_id 无效或缺失')
@@ -188,7 +188,7 @@ def run_generation_task(task_id: str, options: dict):
                         task_id, len(speakers))
         else:
             if not api_key:
-                raise RuntimeError('缺少 DeepSeek API Key，请在请求中提供 api_key')
+                raise RuntimeError('缺少 DeepSeek API Key：请到「账户设置」配置个人 Key，或由管理员配置共享 Key')
             speaker_ids = options.get('speaker_file_ids', [])
             _update(task_id, progress=45,
                     message=f'正在提取演讲者信息 (0/{len(speaker_ids)})')

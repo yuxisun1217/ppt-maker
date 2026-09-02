@@ -36,6 +36,30 @@ htmlcov/
 
 # 本地环境配置（含数据库密码等敏感信息）
 .env
+.env.local
+.env.*.local
+# env.example 为模板文件，需提交入库
 
 # 运行日志
 logs/
+
+# ---- 部署准备补充（2026-09-01）----
+
+# SQLite 数据库（任意名称的本地开发库）
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Web 上传与生成的运行时文件（data/ 已整体忽略，此处为嵌套目录兜底）
+data/web_uploads/
+data/web_output/
+data/speakers/
+
+# 系统与编辑器杂项
+.DS_Store
+Thumbs.db
+
+# 本地 Docker 数据卷（一般由 Docker 管理，不落仓库）
+postgres_data/
+redis_data/

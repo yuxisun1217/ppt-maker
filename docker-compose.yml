@@ -1,0 +1,52 @@
+# 会议串场 PPT 生成器 — Web 版部署编排
+# 用法：
+#   docker compose up -d --build    # 构建镜像并后台启动
+#   docker compose logs -f web      # 跟踪日志
+#   浏览器打开 http://localhost:8000 （首次访问请先注册账号）
+# 可选：将 .env 中的 POSTGRES_PASSWORD 改为生产密码后再启动
+
+services:
+  web:
+    build: .
+    image: pptmaker-web
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # compose 内通过服务名访问数据库；此处显式注入，优先于本地 .env 的同名变量
+      DATABASE_URL: postgresql+psycopg2://pptmaker:${POSTGRES_PASSWORD:-pptmaker}@postgres:5432/pptmaker
+      # 预留：当前版本尚未使用 Redis（会话与后台任务在进程内），后续任务队列接入后生效
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - web_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pptmaker
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pptmaker}
+      POSTGRES_DB: pptmaker
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pptmaker -d pptmaker"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+volumes:
+  web_data:      # 上传文件、生成的 PPT、运行日志
+  postgres_data: # PostgreSQL 数据
+  redis_data:    # Redis 数据（预留）

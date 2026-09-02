@@ -146,6 +146,12 @@ class AccountKeysRequest(BaseModel):
     ocr_api_key: str = ''
 
 
+class SharedKeysRequest(BaseModel):
+    """共享 API Key 更新。None=保持不变，空串=清空。"""
+    api_key: Optional[str] = None
+    ocr_api_key: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Web auth — cookie sessions (in-memory; server restart requires re-login)
 # ---------------------------------------------------------------------------
@@ -313,6 +319,50 @@ async def set_user_admin(user_id: int, req: SetAdminRequest,
 
 
 # ---------------------------------------------------------------------------
+# Shared API keys — 全体用户共享使用，仅管理员可见可改，密文落库
+# ---------------------------------------------------------------------------
+
+@app.get("/api/settings/shared-keys-status")
+async def shared_keys_status(user: dict = Depends(require_user)):
+    """任何登录用户可查共享 Key 的配置状态（不含 Key 值本身）。
+    前端登录后据此提示"未配置，请联系管理员"警告。"""
+    keys = db.get_shared_keys()
+    return {
+        'deepseek_configured': bool(keys['api_key']),
+        'ocr_configured': bool(keys['ocr_api_key']),
+    }
+
+
+@app.get("/api/settings/shared-keys")
+async def get_shared_keys(admin: dict = Depends(require_admin)):
+    """读取共享 API Key（解密后返回，仅管理员）。"""
+    keys = db.get_shared_keys()
+    return {
+        'api_key': keys['api_key'],
+        'ocr_api_key': keys['ocr_api_key'],
+        'deepseek_configured': bool(keys['api_key']),
+        'ocr_configured': bool(keys['ocr_api_key']),
+    }
+
+
+@app.put("/api/settings/shared-keys")
+async def update_shared_keys(req: SharedKeysRequest,
+                             admin: dict = Depends(require_admin)):
+    """更新共享 API Key（加密落库，仅管理员）。两项均为必填。"""
+    current = db.get_shared_keys()
+    final_api = current['api_key'] if req.api_key is None else (req.api_key or '').strip()
+    final_ocr = current['ocr_api_key'] if req.ocr_api_key is None else (req.ocr_api_key or '').strip()
+    if not final_api or not final_ocr:
+        raise HTTPException(400, '共享 DeepSeek API Key 与 OCR.space Key 均为必填，不能留空')
+    keys = db.set_shared_keys(final_api, final_ocr)
+    logger.info('管理员 %s 更新共享 API Key（DeepSeek=%s, OCR=%s）',
+                admin['username'], bool(keys['api_key']), bool(keys['ocr_api_key']))
+    return {'ok': True,
+            'deepseek_configured': bool(keys['api_key']),
+            'ocr_configured': bool(keys['ocr_api_key'])}
+
+
+# ---------------------------------------------------------------------------
 # API endpoints
 # ---------------------------------------------------------------------------
 
@@ -408,11 +458,16 @@ def parse_materials(req: ParseRequest, user: dict = Depends(require_user)):
     from extractors.agenda_extractor import extract_agenda
     from extractors.speaker_extractor import extract_speaker
 
-    # 服务端按账号读取 API Key：账号已配置时优先，否则回退请求中携带的 Key
+    # Key 优先级：账号个人 Key > 请求携带 > 管理员配置的共享 Key
     api_key = user.get('api_key') or req.api_key
     ocr_api_key = user.get('ocr_api_key') or req.ocr_api_key
+    if not api_key or not ocr_api_key:
+        shared = db.get_shared_keys()
+        api_key = api_key or shared['api_key']
+        ocr_api_key = ocr_api_key or shared['ocr_api_key']
     if not api_key:
-        raise HTTPException(400, '缺少 DeepSeek API Key，请先到「账户设置」中配置')
+        raise HTTPException(400, '缺少 DeepSeek API Key，请到「账户设置」配置个人 Key，'
+                                 '或由管理员在「用户管理」中配置共享 Key')
 
     agenda_rec = db.get_upload(req.agenda_file_id)
     if agenda_rec is None:
@@ -500,11 +555,16 @@ async def generate(req: GenerateRequest, background_tasks: BackgroundTasks,
                    user: dict = Depends(require_user)):
     """Trigger PPT generation; returns a task ID for polling."""
     options = req.model_dump()
-    # 服务端按账号读取 API Key：账号已配置时优先，否则回退请求中携带的 Key
+    # Key 优先级：账号个人 Key > 请求携带 > 管理员配置的共享 Key
+    # （tasks.create_task 会从任务记录中剔除 api_key/ocr_api_key，不落明文）
     if user.get('api_key'):
         options['api_key'] = user['api_key']
     if user.get('ocr_api_key'):
         options['ocr_api_key'] = user['ocr_api_key']
+    if not options.get('api_key') or not options.get('ocr_api_key'):
+        shared = db.get_shared_keys()
+        options['api_key'] = options.get('api_key') or shared['api_key']
+        options['ocr_api_key'] = options.get('ocr_api_key') or shared['ocr_api_key']
     task_id = tasks.create_task(options, user_id=user['id'])
     background_tasks.add_task(tasks.run_generation_task, task_id, options)
     return {'task_id': task_id, 'status': tasks.PENDING}

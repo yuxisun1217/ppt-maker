@@ -8,6 +8,7 @@ Windows 桌面应用，根据会议日程图片和演讲者资料文件（DOCX/P
 
 | 文档 | 路径 | 说明 |
 |------|------|------|
+| README | [README.md](README.md) | 项目简介、Web 版部署与运行说明 |
 | 产品需求 | [docs/PRD.md](docs/PRD.md) | 产品定位、功能需求（P0-P2）、业务规则 |
 | 开发需求 | [docs/requirements.md](docs/requirements.md) | 功能需求、输入输出规格 |
 | 技术规范 | [docs/tech_spec.md](docs/tech_spec.md) | 技术栈、项目结构、DB Schema、API 规范 |

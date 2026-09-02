@@ -3,7 +3,7 @@ from pptx import Presentation
 from pptx.util import Inches, Cm, Pt, Emu
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
-from extractors.speaker_extractor import Speaker
+from extractors.speaker_extractor import Speaker, detect_face_strict
 import os
 import re
 
@@ -129,9 +129,10 @@ def _split_names(name_str):
 
 
 def _spread_name(name):
-    """Insert a space in 2-char Chinese names for alignment: 陈晨 → 陈 晨"""
+    """Insert a non-breaking space in 2-char Chinese names for alignment:
+    陈晨 → 陈 晨（U+00A0，防止姓名在换行处被拆开）"""
     if len(name) == 2 and re.fullmatch(r'[一-鿿]{2}', name):
-        return f'{name[0]} {name[1]}'
+        return f'{name[0]}\u00A0{name[1]}'
     return name
 
 
@@ -311,8 +312,12 @@ def _make_divider(prs, home_bg, cfg, title_cn, title_en, bilingual, speaker_line
             speaker_top += d['title_sz']
         line_count = speaker_line.count('\n') + 1
         speaker_h = d['speaker_h'] * line_count
-        _add_textbox(slide, Inches(0.5), speaker_top, w - Inches(1), speaker_h,
-                     speaker_line, d['speaker_sz'], color=d['speaker_color'], bold=True)
+        # 嘉宾介绍行：文本框左右各缩短 2 字符（1 字符宽 ≈ 1 个字号），
+        # 盒子相对页面中线对称，居中显示
+        left = Inches(0.5) + 2 * d['speaker_sz']
+        _add_textbox(slide, left, speaker_top, w - 2 * left, speaker_h,
+                     speaker_line, d['speaker_sz'], color=d['speaker_color'],
+                     bold=True, align=PP_ALIGN.CENTER)
     return slide
 
 
@@ -358,7 +363,7 @@ def _make_bio(prs, content_bg, cfg, speaker, role_label='', en=False):
             pw, ph = img.size
             w_h_ratio = pw / ph if ph > 0 else 1
 
-            # Detect face for smart centering
+            # Detect face for smart centering（多级联严格投票，避免误检/合照误定位）
             face_cx = pw / 2
             face_cy = ph * 0.4
             face_found = False
@@ -366,12 +371,9 @@ def _make_bio(prs, content_bg, cfg, speaker, role_label='', en=False):
                 import cv2, numpy as np
                 pil_img = img.convert('RGB')
                 cv_img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
-                gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
-                cascade = cv2.CascadeClassifier(
-                    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                faces = cascade.detectMultiScale(gray, 1.1, 3)
-                if len(faces) > 0:
-                    x, y, fw, fh = max(faces, key=lambda f: f[2] * f[3])
+                face = detect_face_strict(cv_img)
+                if face is not None:
+                    x, y, fw, fh = face
                     face_cx = x + fw / 2
                     face_cy = y + fh / 2
                     face_found = True
@@ -619,11 +621,11 @@ def generate_ppt(agenda_items, speakers, home_bg, content_bg,
             sp = _match_speaker(name, speakers)
             display = sp.name if sp else name
             if re.search(r'[A-Za-z]', display):
-                # English name — prefix with "Prof. "
-                return f'Prof. {display}'
+                # English name — prefix with "Prof. "（不换行空格，整段姓名不拆行）
+                return 'Prof.\u00A0' + display.replace(' ', '\u00A0')
             if sp and sp.title:
-                return f'{_spread_name(display)} {sp.title}'
-            return f'{_spread_name(display)} 教授'
+                return f'{_spread_name(display)}\u00A0{sp.title}'
+            return f'{_spread_name(display)}\u00A0教授'
 
         def _format_persons(name_str, role_label):
             if not name_str:
