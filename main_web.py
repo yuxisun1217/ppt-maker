@@ -424,7 +424,8 @@ async def re_crop_photo(req: ReCropRequest, user: dict = Depends(require_user)):
     """
     import cv2
     import numpy as np
-    from extractors.speaker_extractor import detect_face_strict, crop_portrait_with_face
+    from extractors.speaker_extractor import (
+        detect_face_strict, crop_portrait_with_face, _upper_body_box)
 
     rec = db.get_upload(req.file_id)
     if rec is None:
@@ -461,6 +462,11 @@ async def re_crop_photo(req: ReCropRequest, user: dict = Depends(require_user)):
     ext = Path(src_path).suffix.lower()
     if ext not in _PHOTO_MIME:
         ext = '.png'
+    box = _upper_body_box(w, h, *face)
+    if box is None:
+        raise HTTPException(400, '裁剪失败（人脸框超出图片范围）')
+    if (box[0], box[1], box[2], box[3]) == (0, 0, w, h):
+        raise HTTPException(400, '裁剪区域与原图相同（人脸已占画面较大比例），无需重新裁剪')
     file_id = uuid.uuid4().hex
     dest = UPLOAD_DIR / ('%s.%s' % (file_id, ext.lstrip('.')))
     if not crop_portrait_with_face(src_path, face, str(dest)):

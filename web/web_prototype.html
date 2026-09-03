@@ -1276,9 +1276,13 @@ tailwind.config = {
       if (toggleBtn) toggleBtn.classList.remove('hidden');
       startBtn.classList.remove('hidden');
       cancelBtn.classList.add('hidden');
+      // 恢复显示当前（最新裁剪）照片
+      imgEl.src = sp.photo.preview || '';
+      showingOriginal = false;
+      if (toggleBtn) toggleBtn.textContent = '查看完整照片';
       setHint((sp.name || '演讲者') + ' · 点击任意处或按 Esc 关闭');
     };
-    var enterCrop = function () {
+    var enterCrop = async function () {
       cropMode = true;
       drag = null;
       selBox.classList.add('hidden');
@@ -1287,6 +1291,24 @@ tailwind.config = {
       if (toggleBtn) toggleBtn.classList.add('hidden');
       startBtn.classList.add('hidden');
       cancelBtn.classList.remove('hidden');
+      setHint('正在切换到完整照片…');
+      // 框选必须基于裁剪源图（完整原图），否则归一化坐标会作用到与原图
+      // 不同的区域。源图就是当前照片时无需切换。
+      if (cropSourceId !== sp.photo.file_id) {
+        startBtn.disabled = true;
+        try {
+          var url = origUrl || (await fetchUploadBlob(cropSourceId));
+          origUrl = url;
+          imgEl.src = url;
+          showingOriginal = true;
+        } catch (e2) {
+          toast('error', '完整照片加载失败：' + e2.message, 6000);
+          exitCrop();
+          return;
+        } finally {
+          startBtn.disabled = false;
+        }
+      }
       setHint('请在照片上按住鼠标拖拽框选人脸区域，松开后自动裁剪');
     };
     var onKey = function (e) {
