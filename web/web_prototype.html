@@ -1267,6 +1267,9 @@ tailwind.config = {
     var exitCrop = function () {
       cropMode = false;
       drag = null;
+      pendingSubmit = false;
+      document.removeEventListener('mousemove', onDocMove);
+      document.removeEventListener('mouseup', onDocUp);
       selBox.classList.add('hidden');
       wrap.classList.remove('cursor-crosshair');
       wrap.classList.add('cursor-zoom-out');
@@ -1298,17 +1301,16 @@ tailwind.config = {
       var r = wrap.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
-    // 框选交互：在图片显示框内拖拽，松开后按归一化坐标重新裁剪
-    wrap.addEventListener('mousedown', function (e) {
-      if (!cropMode) return;
-      e.preventDefault();
-      e.stopPropagation();
-      var p = pos(e);
-      drag = { x0: p.x, y0: p.y, x: p.x, y: p.y };
-    });
-    wrap.addEventListener('mousemove', function (e) {
+    var clampPos = function (p) {
+      var iw = imgEl.clientWidth, ih = imgEl.clientHeight;
+      return { x: Math.max(0, Math.min(iw, p.x)), y: Math.max(0, Math.min(ih, p.y)) };
+    };
+    var pendingSubmit = false;
+    // 框选交互：mousemove/mouseup 挂 document——鼠标拖出照片范围再松手也能完成裁剪；
+    // 松手后紧随的 click 由 pendingSubmit 标记吞掉，避免触发遮罩的「取消裁剪」
+    var onDocMove = function (e) {
       if (!cropMode || !drag) return;
-      var p = pos(e);
+      var p = clampPos(pos(e));
       drag.x = p.x;
       drag.y = p.y;
       var x = Math.min(drag.x0, drag.x), y = Math.min(drag.y0, drag.y);
@@ -1317,24 +1319,34 @@ tailwind.config = {
       selBox.style.width = Math.abs(drag.x - drag.x0) + 'px';
       selBox.style.height = Math.abs(drag.y - drag.y0) + 'px';
       selBox.classList.remove('hidden');
-    });
-    wrap.addEventListener('mouseup', function (e) {
+    };
+    var onDocUp = function (e) {
       if (!cropMode || !drag) return;
-      e.preventDefault();
-      e.stopPropagation();
-      var wpx = Math.abs(drag.x - drag.x0), hpx = Math.abs(drag.y - drag.y0);
-      var x = Math.min(drag.x0, drag.x), y = Math.min(drag.y0, drag.y);
+      var p = clampPos(pos(e));
+      var wpx = Math.abs(p.x - drag.x0), hpx = Math.abs(p.y - drag.y0);
+      var x = Math.min(drag.x0, p.x), y = Math.min(drag.y0, p.y);
       drag = null;
       selBox.classList.add('hidden');
-      if (wpx < 8 || hpx < 8) return;   // 视为误点
+      document.removeEventListener('mousemove', onDocMove);
+      document.removeEventListener('mouseup', onDocUp);
+      if (wpx < 8 || hpx < 8) return;   // 视为误点，保持框选模式
       var iw = imgEl.clientWidth, ih = imgEl.clientHeight;
       if (!iw || !ih) return;
-      // 归一化并夹在 [0,1]，超出图片显示范围的部分由服务端裁剪框限制兜底
-      var clamp = function (v) { return Math.max(0, Math.min(1, v)); };
+      pendingSubmit = true;
       doReCrop({
-        x: clamp(x / iw), y: clamp(y / ih),
-        w: clamp(wpx / iw), h: clamp(hpx / ih),
+        x: Math.max(0, Math.min(1, x / iw)),
+        y: Math.max(0, Math.min(1, y / ih)),
+        w: Math.max(0, Math.min(1, wpx / iw)),
+        h: Math.max(0, Math.min(1, hpx / ih)),
       });
+    };
+    wrap.addEventListener('mousedown', function (e) {
+      if (!cropMode) return;
+      e.preventDefault();
+      var p = clampPos(pos(e));
+      drag = { x0: p.x, y0: p.y, x: p.x, y: p.y };
+      document.addEventListener('mousemove', onDocMove);
+      document.addEventListener('mouseup', onDocUp);
     });
     var doReCrop = async function (faceBox) {
       startBtn.disabled = true;
@@ -1377,7 +1389,11 @@ tailwind.config = {
     });
     document.addEventListener('keydown', onKey);
     overlay.addEventListener('click', function () {
-      if (cropMode) { exitCrop(); return; }
+      if (cropMode) {
+        if (pendingSubmit) { pendingSubmit = false; return; }  // 拖拽松手后紧跟的 click，忽略
+        exitCrop();
+        return;
+      }
       close();
     });
     // 默认显示解析结果中的照片（裁剪后大头像）；
