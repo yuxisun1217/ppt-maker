@@ -408,6 +408,75 @@ _PHOTO_MIME = {
 }
 
 
+class ReCropRequest(BaseModel):
+    file_id: str                              # 源照片（原图优先；也可是当前裁剪图）
+    face_box: Optional[dict] = None           # {'x','y','w','h'} 归一化 0~1；缺省重新自动检测
+
+
+@app.post("/api/photo/re-crop")
+async def re_crop_photo(req: ReCropRequest, user: dict = Depends(require_user)):
+    """按用户框选的人脸区域（或重新自动检测）裁剪演讲者照片，生成新照片。
+
+    face_box 为相对源图的归一化坐标（0~1）；缺省时重新运行严格人脸检测
+    （对已能检出的照片结果与首次裁剪一致，适合想换自动裁剪策略时重试）。
+    裁剪复用 extractors 的上半身构图（脸约占画面 1/3）；原图保持不动，
+    新照片落盘并登记 uploads 表，返回 {file_id, filename, preview}。
+    """
+    import cv2
+    import numpy as np
+    from extractors.speaker_extractor import detect_face_strict, crop_portrait_with_face
+
+    rec = db.get_upload(req.file_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail='未知文件ID')
+    if rec.get('user_id') is None or rec.get('user_id') != user['id']:
+        raise HTTPException(status_code=403, detail='无权访问该文件')
+    src_path = rec['path']
+    if not os.path.exists(src_path):
+        raise HTTPException(status_code=404, detail='文件不存在（可能已被清理）')
+
+    with open(src_path, 'rb') as f:
+        raw = f.read()
+    img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(400, '源文件不是有效图片')
+    h, w = img.shape[:2]
+
+    if req.face_box:
+        fb = req.face_box
+        try:
+            fx_n, fy_n, fw_n, fh_n = (float(fb.get(k)) for k in ('x', 'y', 'w', 'h'))
+        except (TypeError, ValueError):
+            raise HTTPException(400, 'face_box 需包含数字型 x/y/w/h')
+        if min(fx_n, fy_n, fw_n, fh_n) < 0 or max(fx_n, fy_n, fw_n, fh_n) > 1.5:
+            raise HTTPException(400, 'face_box 数值超出范围')
+        if fw_n < 0.03 or fh_n < 0.03:
+            raise HTTPException(400, '框选区域太小，请重新框选人脸')
+        face = (fx_n * w, fy_n * h, fw_n * w, fh_n * h)
+    else:
+        face = detect_face_strict(img)
+        if face is None:
+            raise HTTPException(400, '自动检测未找到唯一人脸，请手动框选人脸区域')
+
+    ext = Path(src_path).suffix.lower()
+    if ext not in _PHOTO_MIME:
+        ext = '.png'
+    file_id = uuid.uuid4().hex
+    dest = UPLOAD_DIR / ('%s.%s' % (file_id, ext.lstrip('.')))
+    if not crop_portrait_with_face(src_path, face, str(dest)):
+        raise HTTPException(400, '裁剪失败（人脸框超出图片范围）')
+
+    filename = '%s_重新裁剪%s' % (Path(rec['filename'] or '照片').stem, ext)
+    db.create_upload(file_id, filename, str(dest),
+                     dest.stat().st_size, user_id=user['id'])
+    with open(str(dest), 'rb') as f:
+        img_bytes = f.read()
+    logger.info('照片重新裁剪: %s (%s) → %s', rec['filename'], req.file_id, file_id)
+    return {'file_id': file_id, 'filename': filename,
+            'preview': 'data:%s;base64,%s' % (
+                _PHOTO_MIME[ext], base64.b64encode(img_bytes).decode())}
+
+
 @app.post("/api/template/background")
 async def template_background(file: UploadFile = File(...),
                               user: dict = Depends(require_user)):

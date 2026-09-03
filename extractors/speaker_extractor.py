@@ -111,13 +111,33 @@ def detect_face_strict(img_bgr):
     return confirmed[0]
 
 
-def _crop_head_portrait(photo_path: str) -> bool:
-    """照片裁剪为上半身像（头+肩+胸，脸约占画面高度 1/3）。返回是否已裁剪；任何失败保留原图。
+def _upper_body_box(w, h, fx, fy, fw, fh):
+    """围绕人脸框计算上半身裁剪框（头+肩+胸，脸约占画面高度 1/3）。
 
-    用多级联严格投票（detect_face_strict）确认唯一人脸：检测不到、
-    多人合照、或人脸已占画面 40% 以上（本来就是特写/证件照）时不裁剪；
-    否则围绕确认的人脸裁剪上半身区域。
+    以人脸为中心，上留头发、下至胸肩、两侧含肩
+    （高度 3.0×人脸高 → 脸约占 1/3；宽度 2.4×人脸宽 ≈ 1.4×头宽，含肩）。
     裁剪框一律限制在原图范围内——只裁剪，绝不扩图，也不放大分辨率。
+    框无效（尺寸非正）时返回 None。
+    """
+    cx = fx + fw / 2.0
+    x0 = int(cx - 1.2 * fw)
+    x1 = int(cx + 1.2 * fw)
+    y0 = int(fy - 0.6 * fh)
+    y1 = int(fy + 2.4 * fh)
+    x0 = max(0, x0)
+    y0 = max(0, y0)
+    x1 = min(w, x1)
+    y1 = min(h, y1)
+    if x1 <= x0 or y1 <= y0:
+        return None
+    return (x0, y0, x1, y1)
+
+
+def crop_portrait_with_face(photo_path: str, face_xywh, output_path: str = None) -> bool:
+    """按指定人脸框（x, y, w, h，像素坐标）将照片裁剪为上半身像。
+
+    output_path 缺省时原地覆盖（与自动裁剪行为一致）；任何失败保留原文件。
+    裁剪框限制在原图范围内，按原格式、原始分辨率保存，不放大分辨率。
     """
     import numpy as np
     import cv2
@@ -131,40 +151,52 @@ def _crop_head_portrait(photo_path: str) -> bool:
         if img is None:
             return False
         h, w = img.shape[:2]
-        face = detect_face_strict(img)
-        if face is None:
+        fx, fy, fw, fh = face_xywh
+        box = _upper_body_box(w, h, fx, fy, fw, fh)
+        if box is None:
             return False
-        fx, fy, fw, fh = face
-
-        # 人脸已占画面高度 40% 以上 → 已是特写，不裁剪
-        if fh >= 0.4 * h:
-            return False
-
-        # 上半身区域：以人脸为中心，上留头发、下至胸肩、两侧含肩
-        # （高度 3.0×人脸高 → 脸约占 1/3；宽度 2.4×人脸宽 ≈ 1.4×头宽，含肩）
-        cx = fx + fw / 2.0
-        x0 = int(cx - 1.2 * fw)
-        x1 = int(cx + 1.2 * fw)
-        y0 = int(fy - 0.6 * fh)
-        y1 = int(fy + 2.4 * fh)
-        # 限制在原图范围内——只裁剪，绝不扩图
-        x0 = max(0, x0)
-        y0 = max(0, y0)
-        x1 = min(w, x1)
-        y1 = min(h, y1)
-        if x1 <= x0 or y1 <= y0:
-            return False
+        x0, y0, x1, y1 = box
 
         with Image.open(photo_path) as im:
             im.load()
             fmt = im.format or 'JPEG'
             cropped = im.crop((x0, y0, x1, y1))
-        # 按原格式、原始分辨率保存，不放大；JPEG 用高质量减少重编码损失
+        # 按原格式、原始分辨率保存；JPEG 用高质量减少重编码损失
         save_kwargs = {'quality': 95, 'subsampling': 0} if fmt == 'JPEG' else {}
-        cropped.save(photo_path, format=fmt, **save_kwargs)
-        logger.info('照片已裁剪为上半身: %dx%d → (%d,%d,%d,%d)，人脸框 (%d,%d,%d,%d)',
+        cropped.save(output_path or photo_path, format=fmt, **save_kwargs)
+        logger.info('照片已按人脸框裁剪为上半身: %dx%d → (%d,%d,%d,%d)，人脸框 (%d,%d,%d,%d)',
                     w, h, x0, y0, x1, y1, fx, fy, fw, fh)
         return True
+    except Exception as e:
+        logger.warning('头像裁剪失败，保留原图: %s', e)
+        return False
+
+
+def _crop_head_portrait(photo_path: str) -> bool:
+    """照片裁剪为上半身像（头+肩+胸，脸约占画面高度 1/3）。返回是否已裁剪；任何失败保留原图。
+
+    用多级联严格投票（detect_face_strict）确认唯一人脸：检测不到、
+    多人合照、或人脸已占画面 40% 以上（本来就是特写/证件照）时不裁剪；
+    否则围绕确认的人脸裁剪上半身区域（复用 crop_portrait_with_face）。
+    """
+    import numpy as np
+    import cv2
+
+    try:
+        with open(photo_path, 'rb') as f:
+            raw = f.read()
+        # 用 imdecode 而非 imread：避免 Windows 下中文路径无法读取
+        img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            return False
+        h, w = img.shape[:2]
+        face = detect_face_strict(img)
+        if face is None:
+            return False
+        # 人脸已占画面高度 40% 以上 → 已是特写，不裁剪
+        if face[3] >= 0.4 * h:
+            return False
+        return crop_portrait_with_face(photo_path, face)
     except Exception as e:
         logger.warning('头像裁剪失败，保留原图: %s', e)
         return False

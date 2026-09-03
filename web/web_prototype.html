@@ -1234,33 +1234,156 @@ tailwind.config = {
     if (!state.parsed || !state.parsed.speakers[idx]) return;
     var sp = state.parsed.speakers[idx];
     if (!sp.photo) { toast('error', '该演讲者暂无照片'); return; }
+    // 重新裁剪的源图：优先完整原图；无原图时用当前照片（如手动上传的未裁剪图）
+    var cropSourceId = sp.photo.original_file_id || sp.photo.file_id;
     var overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-6 cursor-zoom-out';
     overlay.innerHTML =
       '<div class="flex flex-col items-center gap-3 max-w-[92vw]">' +
-      '<img src="" class="max-w-full max-h-[75vh] rounded-lg shadow-2xl" alt="' + esc((sp.name || '演讲者') + ' 照片') + '">' +
-      '<div class="flex items-center gap-3">' +
+      '<div class="crop-wrap relative inline-block max-w-full cursor-zoom-out">' +
+      '<img src="" draggable="false" class="max-w-full max-h-[75vh] rounded-lg shadow-2xl select-none" alt="' + esc((sp.name || '演讲者') + ' 照片') + '">' +
+      '<div class="crop-sel hidden absolute border-2 border-emerald-300 bg-emerald-300/25 rounded pointer-events-none"></div>' +
+      '</div>' +
+      '<div class="flex items-center gap-3 flex-wrap justify-center">' +
       (sp.photo.original_file_id
-        ? '<button type="button" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-sm font-medium">查看完整照片</button>'
+        ? '<button type="button" class="crop-toggle px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-sm font-medium">查看完整照片</button>'
         : '') +
-      '<p class="text-white/80 text-sm">' + esc(sp.name || '演讲者') + ' · 点击任意处或按 Esc 关闭</p>' +
+      '<button type="button" class="crop-start px-3 py-1.5 rounded-lg bg-emerald-500/80 hover:bg-emerald-500 text-white text-sm font-medium">重新裁剪</button>' +
+      '<button type="button" class="crop-cancel hidden px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-sm font-medium">取消裁剪</button>' +
+      '<p class="crop-hint text-white/80 text-sm">' + esc(sp.name || '演讲者') + ' · 点击任意处或按 Esc 关闭</p>' +
       '</div>' +
       '</div>';
     document.body.appendChild(overlay);
     var imgEl = overlay.querySelector('img');
-    var toggleBtn = overlay.querySelector('button');
-    var onKey = function (e) { if (e.key === 'Escape') close(); };
+    var wrap = overlay.querySelector('.crop-wrap');
+    var selBox = overlay.querySelector('.crop-sel');
+    var toggleBtn = overlay.querySelector('.crop-toggle');
+    var startBtn = overlay.querySelector('.crop-start');
+    var cancelBtn = overlay.querySelector('.crop-cancel');
+    var hintEl = overlay.querySelector('.crop-hint');
+    var cropMode = false, drag = null, origUrl = null, showingOriginal = false;
+    var setHint = function (t) { hintEl.textContent = t; };
+
+    var exitCrop = function () {
+      cropMode = false;
+      drag = null;
+      selBox.classList.add('hidden');
+      wrap.classList.remove('cursor-crosshair');
+      wrap.classList.add('cursor-zoom-out');
+      if (toggleBtn) toggleBtn.classList.remove('hidden');
+      startBtn.classList.remove('hidden');
+      cancelBtn.classList.add('hidden');
+      setHint((sp.name || '演讲者') + ' · 点击任意处或按 Esc 关闭');
+    };
+    var enterCrop = function () {
+      cropMode = true;
+      drag = null;
+      selBox.classList.add('hidden');
+      wrap.classList.remove('cursor-zoom-out');
+      wrap.classList.add('cursor-crosshair');
+      if (toggleBtn) toggleBtn.classList.add('hidden');
+      startBtn.classList.add('hidden');
+      cancelBtn.classList.remove('hidden');
+      setHint('请在照片上按住鼠标拖拽框选人脸区域，松开后自动裁剪');
+    };
+    var onKey = function (e) {
+      if (e.key !== 'Escape') return;
+      if (cropMode) { exitCrop(); } else { close(); }
+    };
     var close = function () {
       overlay.remove();
       document.removeEventListener('keydown', onKey);
     };
+    var pos = function (e) {
+      var r = wrap.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    // 框选交互：在图片显示框内拖拽，松开后按归一化坐标重新裁剪
+    wrap.addEventListener('mousedown', function (e) {
+      if (!cropMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var p = pos(e);
+      drag = { x0: p.x, y0: p.y, x: p.x, y: p.y };
+    });
+    wrap.addEventListener('mousemove', function (e) {
+      if (!cropMode || !drag) return;
+      var p = pos(e);
+      drag.x = p.x;
+      drag.y = p.y;
+      var x = Math.min(drag.x0, drag.x), y = Math.min(drag.y0, drag.y);
+      selBox.style.left = x + 'px';
+      selBox.style.top = y + 'px';
+      selBox.style.width = Math.abs(drag.x - drag.x0) + 'px';
+      selBox.style.height = Math.abs(drag.y - drag.y0) + 'px';
+      selBox.classList.remove('hidden');
+    });
+    wrap.addEventListener('mouseup', function (e) {
+      if (!cropMode || !drag) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var wpx = Math.abs(drag.x - drag.x0), hpx = Math.abs(drag.y - drag.y0);
+      var x = Math.min(drag.x0, drag.x), y = Math.min(drag.y0, drag.y);
+      drag = null;
+      selBox.classList.add('hidden');
+      if (wpx < 8 || hpx < 8) return;   // 视为误点
+      var iw = imgEl.clientWidth, ih = imgEl.clientHeight;
+      if (!iw || !ih) return;
+      // 归一化并夹在 [0,1]，超出图片显示范围的部分由服务端裁剪框限制兜底
+      var clamp = function (v) { return Math.max(0, Math.min(1, v)); };
+      doReCrop({
+        x: clamp(x / iw), y: clamp(y / ih),
+        w: clamp(wpx / iw), h: clamp(hpx / ih),
+      });
+    });
+    var doReCrop = async function (faceBox) {
+      startBtn.disabled = true;
+      setHint('正在重新裁剪…');
+      try {
+        var d = await api('/api/photo/re-crop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_id: cropSourceId, face_box: faceBox }),
+        });
+        sp.photo = {
+          file_id: d.file_id,
+          filename: d.filename,
+          preview: d.preview,
+          original_file_id: sp.photo.original_file_id || cropSourceId,
+          original_filename: sp.photo.original_filename || '',
+        };
+        // 更新卡片缩略图与灯箱显示
+        var thumb = document.querySelector('#sp-photo-' + idx + ' img');
+        if (thumb) thumb.src = d.preview;
+        imgEl.src = d.preview;
+        showingOriginal = false;
+        if (toggleBtn) toggleBtn.textContent = '查看完整照片';
+        toast('success', '已重新裁剪（' + (sp.name || '演讲者') + '）');
+        exitCrop();
+      } catch (e2) {
+        toast('error', '重新裁剪失败：' + e2.message, 6500);
+        exitCrop();
+      } finally {
+        startBtn.disabled = false;
+      }
+    };
+    startBtn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      enterCrop();
+    });
+    cancelBtn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      exitCrop();
+    });
     document.addEventListener('keydown', onKey);
-    overlay.addEventListener('click', close);
+    overlay.addEventListener('click', function () {
+      if (cropMode) { exitCrop(); return; }
+      close();
+    });
     // 默认显示解析结果中的照片（裁剪后大头像）；
     // 有完整原图时通过「查看完整照片」按钮切换，不自动替换
     imgEl.src = sp.photo.preview || '';
     if (toggleBtn) {
-      var origUrl = null, showingOriginal = false;
       toggleBtn.addEventListener('click', function (ev) {
         ev.stopPropagation();
         if (showingOriginal) {
