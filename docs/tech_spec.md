@@ -4,54 +4,53 @@
 
 | 层 | 技术 | 版本要求 |
 |----|------|---------|
-| GUI | tkinter + ttk | Python 内置 |
+| Web 后端 | FastAPI + uvicorn（单 worker） | >= 0.115 / >= 0.30 |
+| Web 前端 | 原生 HTML/JS + Tailwind（单文件，web/ 目录） | |
 | 数据库 | SQLAlchemy 2.0 ORM（SQLite 开发 / PostgreSQL 生产，Alembic 迁移） | |
 | PPT 生成 | python-pptx | >= 1.0.2 |
-| 格式转换 | pywin32 (Word COM) | DOCX → PDF |
-| DOCX 解析 | python-docx | 提取内嵌图片 |
+| DOCX 解析 | python-docx | 提取文字与内嵌图片 |
 | PPTX 解析 | python-pptx | 直接提取文字+图片 |
 | PDF 解析 | PyPDF2 | >= 3.0.0 |
-| OCR | pytesseract + Tesseract-OCR 5.4 | 日程图片文字全图提取（海报式图片布局检测模型不可靠） |
-| AI 集成 | DeepSeek API（仅文本） | 不支持 Vision，图片经 OCR 转文字后处理 |
-| AI 集成 | DeepSeek API | chat/completions |
-| 图片处理 | Pillow | >= 11.0.0 |
+| OCR | OCR.space API | 日程图片文字全图提取 |
+| AI 集成 | DeepSeek API（仅文本） | 图片经 OCR 转文字后处理 |
+| 图片处理 | Pillow / OpenCV（人脸检测裁剪） | >= 11.0.0 / >= 4.8 |
 
 ## 项目结构
 
 ```
-d:\ppt_maker\
+d:\ppt_maker\ppt_maker\
 ├── CLAUDE.md                    # 项目指引
-├── main.py                      # 入口
-├── requirements.txt             # 依赖
+├── main_web.py                  # Web 后端入口（FastAPI，API + 静态前端一体）
+├── requirements.txt             # 依赖（Windows/Linux 通用）
+├── Dockerfile / docker-compose.yml / start_dev.sh / env.example  # 部署与本地启动
+├── alembic/                     # 数据库迁移
+├── web/                         # 前端页面（login / admin / settings / web_prototype）
 ├── docs/                        # 项目文档
-│   ├── requirements.md
-│   ├── tech_spec.md
-│   ├── design_spec.md
-│   └── implementation_plan.md
-├── dev_logs/                    # 开发日志（每日自动生成）
+├── dev_logs/                    # 开发日志（每日记录）
 ├── database/
-│   ├── db.py                    # 数据访问层（SQLAlchemy，兼容旧函数签名）
-│   └── models.py                # ORM 模型：User/Speaker/Task/Upload
+│   ├── db.py                    # 数据访问层（SQLAlchemy）
+│   └── models.py                # ORM 模型：User/Speaker/Task/Upload/SystemSetting
 ├── extractors/
-│   ├── speaker_extractor.py     # 演讲者提取
+│   ├── speaker_extractor.py     # 演讲者提取（含人脸检测裁剪）
 │   └── agenda_extractor.py      # 日程识别
-├── ppt_generator.py             # PPT 生成
-├── ui/
-│   ├── login_window.py          # 登录/注册
-│   └── main_window.py           # 主界面
+├── ppt_generator.py             # PPT 生成（固定布局代码）
+├── tasks.py                     # 后台生成任务（进程内）
 └── utils/
-    ├── convert_to_pdf.py        # DOCX/PPTX → PDF
-    └── deepseek_client.py       # DeepSeek API
+    ├── crypto.py                # 共享 Key Fernet 加解密
+    ├── deepseek_client.py       # DeepSeek API
+    └── ppt_template_extractor.py # 模板背景图提取
 ```
 
 ## 数据流
 
 ```
-DOCX ──→ Word COM ──→ PDF ──→ DeepSeek Vision ──┐
-PPTX ──→ python-pptx(文字+图片提取) ──→ DeepSeek text ──┼──→ Speaker 对象
-PDF  ──→ DeepSeek Vision ──────────────────────────┘
+日程图片 ──→ OCR.space ──→ DeepSeek 结构化 ──→ 解析结果（前端可编辑）
+DOCX ──→ python-docx（文字+图片提取）──→ DeepSeek ──→ 演讲者数据 ──→ ppt_generator ──→ PPTX
+PPTX ──→ python-pptx（文字+图片提取）──→ DeepSeek ──→ 演讲者数据
+PDF  ──→ PyPDF2 ──→ DeepSeek ──→ 演讲者数据
 ```
-说明：DOCX 先转 PDF 再视觉识别；PPTX 用 python-pptx 直接提取（COM 不可靠）；PDF 直接视觉识别。
+说明：日程图片经 OCR 转文字后由 DeepSeek 结构化；演讲者资料按格式用
+对应库直接提取文字/图片，无需 PDF 中间转换。
 
 ## 数据库 Schema
 

@@ -1,8 +1,9 @@
 # CLAUDE.md — 会议串场 PPT 生成器
 
 ## 项目概述
-Windows 桌面应用，根据会议日程图片和演讲者资料文件（DOCX/PDF/PPTX），
-通过 DeepSeek Vision AI 提取结构化数据，自动生成中英双语会议串场 PPT。
+Web 应用（FastAPI 后端 + 单文件前端），根据会议日程图片和演讲者资料文件
+（DOCX/PDF/PPTX），通过 OCR + DeepSeek AI 提取结构化数据，自动生成中英双语
+会议串场 PPT。桌面版（main.py/ui/）已移除，仓库仅保留 Web 版。
 
 ## 文档索引
 

@@ -5,7 +5,6 @@ opencv-python-headless>=4.8
 python-docx>=1.0.0
 openpyxl>=3.1.0
 olefile>=0.47
-pywin32>=300
 PyPDF2>=3.0.0
 # 数据库层（SQLAlchemy ORM + 迁移；Postgres 生产 / SQLite 开发）
 SQLAlchemy>=2.0

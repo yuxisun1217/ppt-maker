@@ -3,12 +3,8 @@
 根据会议日程图片和演讲者资料文件（DOCX/PDF/PPTX），通过 DeepSeek AI 提取
 结构化数据，自动生成中英双语会议串场 PPT。
 
-本仓库包含两个版本，共享同一套提取与生成管线：
-
-| 版本 | 入口 | 说明 |
-|------|------|------|
-| **Web 版** | `main_web.py` | FastAPI 后端 + 单文件前端，账号登录、文件上传、AI 解析编辑、生成下载（本 README 重点） |
-| 桌面版 | `main.py` | Windows 桌面 GUI |
+本仓库为 **Web 版**：FastAPI 后端 + 单文件前端，账号登录、文件上传、AI 解析编辑、生成下载。
+（早期桌面版 `main.py`/`ui/` 已移除，共享同一套提取与生成管线。）
 
 ## 功能特性
 
@@ -46,8 +42,8 @@ docs/                  产品需求、技术规范、设计规范、执行计划
 ./start_dev.sh
 ```
 
-脚本会自动完成：创建虚拟环境 `.venv` → 安装依赖（Windows 含 pywin32，
-其他平台自动剔除）→ 从 `env.example` 生成 `.env`（默认 SQLite 本地库）→
+脚本会自动完成：创建虚拟环境 `.venv` → 安装依赖（Windows/Linux 通用）→
+从 `env.example` 生成 `.env`（默认 SQLite 本地库）→
 以热重载模式启动服务。
 
 浏览器打开 <http://127.0.0.1:8000>，首次使用先注册账号（第一位注册的用户
@@ -58,7 +54,7 @@ docs/                  产品需求、技术规范、设计规范、执行计划
 ```bash
 python -m venv .venv
 source .venv/Scripts/activate        # Windows；macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt   # 非 Windows 需先剔除 pywin32
+pip install -r requirements.txt
 cp env.example .env                  # 首次
 uvicorn main_web:app --host 127.0.0.1 --port 8000 --reload
 ```

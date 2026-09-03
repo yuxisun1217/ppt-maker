@@ -26,15 +26,10 @@ fi
 # 激活（Windows: Scripts/；macOS/Linux: bin/）
 source .venv/Scripts/activate 2>/dev/null || source .venv/bin/activate
 
-# 3. 依赖（requirements.txt 含桌面端+Web 端依赖，pywin32 仅 Windows 安装）
+# 3. 依赖
 echo "[2/4] 安装依赖（首次较慢，请耐心等待）"
 python -m pip install -q --upgrade pip
-if python -c "import sys; sys.exit(0 if sys.platform == 'win32' else 1)"; then
-  pip install -q -r requirements.txt
-else
-  sed '/^pywin32/d' requirements.txt > /tmp/pptmaker_requirements_linux.txt
-  pip install -q -r /tmp/pptmaker_requirements_linux.txt
-fi
+pip install -q -r requirements.txt
 
 # 4. 生成 .env（默认 SQLite 本地库，无需修改即可运行）
 echo "[3/4] 检查 .env"

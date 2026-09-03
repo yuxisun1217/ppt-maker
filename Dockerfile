@@ -14,9 +14,7 @@ WORKDIR /app
 
 # 先复制依赖清单并安装（利用镜像层缓存；后续只改代码不重装依赖）
 COPY requirements.txt ./
-# requirements.txt 含桌面端+Web 端依赖，其中 pywin32 仅 Windows 可用，Linux 镜像剔除
-RUN sed '/^pywin32/d' requirements.txt > /tmp/requirements_linux.txt \
-    && pip install -r /tmp/requirements_linux.txt
+RUN pip install -r requirements.txt
 
 COPY . .
 
