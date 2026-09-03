@@ -14,7 +14,7 @@ WORKDIR /app
 
 # 先复制依赖清单并安装（利用镜像层缓存；后续只改代码不重装依赖）
 COPY requirements.txt ./
-RUN pip install -r requirements.txt
+RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
 COPY . .
 

@@ -15,6 +15,7 @@ Web 应用（FastAPI 后端 + 单文件前端），根据会议日程图片和�
 | 技术规范 | [docs/tech_spec.md](docs/tech_spec.md) | 技术栈、项目结构、DB Schema、API 规范 |
 | 设计规范 | [docs/design_spec.md](docs/design_spec.md) | UI 配色、组件规范、PPT 输出规范 |
 | 执行步骤 | [docs/implementation_plan.md](docs/implementation_plan.md) | 分阶段开发计划 + Checkpoint |
+| 备份恢复 | [docs/backup_restore.md](docs/backup_restore.md) | 数据库/卷备份与恢复操作手册（脚本 deploy/backup.sh） |
 | 开发日志 | [dev_logs/](dev_logs/) | 每日开发记录 |
 
 ## 工作说明

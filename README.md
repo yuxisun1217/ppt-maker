@@ -30,6 +30,7 @@ tasks.py               后台生成任务
 Dockerfile             Web 版镜像
 docker-compose.yml     Web + PostgreSQL + Redis 编排
 start_dev.sh           本地开发一键启动
+deploy/backup.sh       每日备份脚本（数据库 + 文件卷 + .env）
 env.example            环境变量模板（复制为 .env）
 docs/                  产品需求、技术规范、设计规范、执行计划
 ```
@@ -152,4 +153,5 @@ docker compose ps
 | [docs/tech_spec.md](docs/tech_spec.md) | 技术栈、DB Schema、API 规范 |
 | [docs/design_spec.md](docs/design_spec.md) | UI 配色、组件与 PPT 输出规范 |
 | [docs/implementation_plan.md](docs/implementation_plan.md) | 分阶段开发计划与 Checkpoint |
+| [docs/backup_restore.md](docs/backup_restore.md) | 备份与恢复操作手册（脚本 deploy/backup.sh） |
 | [dev_logs/](dev_logs/) | 每日开发记录 |
