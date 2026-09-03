@@ -743,7 +743,6 @@ tailwind.config = {
     pollTimer: null,
     generating: false,
     uploading: 0,      // 正在上传的文件数
-    accountKeyConfigured: false, // 账号已在服务端配置 DeepSeek Key
     parsed: null,      // {agenda:[], speakers:[]} 解析/编辑结果；null=未解析
     parsing: false,    // 解析请求进行中
   };
@@ -1648,7 +1647,6 @@ tailwind.config = {
       }
       var data = await res.json();
       var u = data.user || {};
-      state.accountKeyConfigured = !!u.api_key_configured;
       $('user-name').textContent = u.username || '';
       $('user-avatar').textContent = (u.username || '?').slice(0, 1);
       $('user-role').textContent = u.is_admin ? '管理员' : '普通用户';
@@ -1656,12 +1654,10 @@ tailwind.config = {
         $('link-admin').classList.remove('hidden');
         $('btn-account').classList.remove('hidden'); // 「账户设置」仅管理员可见
       }
-      if (!u.api_key_configured) {
-        if (u.is_admin) {
-          toast('info', '账户尚未配置 DeepSeek API Key，可到「账户设置」填写', 6000);
-        } else {
-          toast('info', '账户未配置个人 DeepSeek API Key，将使用管理员配置的共享 Key（如已配置）', 6000);
-        }
+      // 非管理员未配置个人 Key 不告警（共享 Key 兜底）；
+      // 共享 Key 缺失时的告警（缺少哪个、联系管理员）由 checkSharedKeys 统一处理
+      if (!u.api_key_configured && u.is_admin) {
+        toast('info', '账户尚未配置 DeepSeek API Key，可到「账户设置」填写', 6000);
       }
       checkSharedKeys(u);
     } catch (e) {
