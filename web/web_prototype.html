@@ -1813,12 +1813,13 @@ tailwind.config = {
       $('user-role').textContent = u.is_admin ? '管理员' : '普通用户';
       if (u.is_admin) {
         $('link-admin').classList.remove('hidden');
-        $('btn-account').classList.remove('hidden'); // 「账户设置」仅管理员可见
+        // 「账户设置」按钮对全部用户隐藏（个人 Key 可选，共享 Key 兜底）；
+        // 后端接口保留，页面仍可直接访问 /web/settings.html
       }
       // 非管理员未配置个人 Key 不告警（共享 Key 兜底）；
       // 共享 Key 缺失时的告警（缺少哪个、联系管理员）由 checkSharedKeys 统一处理
       if (!u.api_key_configured && u.is_admin) {
-        toast('info', '账户尚未配置 DeepSeek API Key，可到「账户设置」填写', 6000);
+        toast('info', '账户尚未配置 DeepSeek API Key，将使用共享 Key；如需配置个人 Key 可直接访问 /web/settings.html', 6000);
       }
       checkSharedKeys(u);
     } catch (e) {
